@@ -1,10 +1,10 @@
 ---
 
-# BalikBoxify
+# MyBalikBox
 
 A collaborative Balikbayan box planning platform
 
-BalikBoxify is a web app that helps Filipino and Filipino American families plan meaningful Balikbayan boxes together. Instead of scattered messages and forgotten items, families can collaborate on shared checklists, explore cultural recommendations, and share the stories behind what they send.
+MyBalikBox is a web app that helps Filipino and Filipino American families plan meaningful Balikbayan boxes together. Instead of scattered messages and forgotten items, families can collaborate on shared checklists, explore cultural recommendations, and share the stories behind what they send.
 
 ## Highlights
 
@@ -13,27 +13,6 @@ BalikBoxify is a web app that helps Filipino and Filipino American families plan
 - Discover commonly sent items and traditions
 - Community stories and discussion forum
 - Built specifically around the Balikbayan box experience
-
-## Overview
-
-Balikbayan boxes are a long-standing tradition used by Filipino families to stay connected across distance. However, deciding what to send often happens through scattered chats, making it hard to stay organized or include meaningful items.
-
-BalikBoxify solves this by providing a centralized, collaborative planning space where senders and recipients can work together on a shared checklist, track item status, and explore culturally relevant suggestions.
-
-This project is being developed by a student team to support more intentional, organized, and culturally meaningful box planning.
-
-## Who This Is For
-
-**Box Builders (Senders)**
-- Create and manage box plans
-- Invite family members
-- Review and approve item suggestions
-- Track included items
-
-**Recipients (Contributors)**
-- Suggest items with notes
-- See item status updates
-- Collaborate with senders
 
 ## Installation
 
@@ -44,10 +23,10 @@ This project is being developed by a student team to support more intentional, o
 **Setup**
 
 ```
-git clone https://github.com/your-org/mybalikbox.git
+git clone https://github.com/robbie2005/mybalikbox.git
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
 **Environment Variables**
@@ -55,13 +34,13 @@ npm start
 Create a `.env` file in the frontend directory:
 
 ```
-REACT_APP_SUPABASE_URL=
-REACT_APP_SUPABASE_ANON_KEY=
+REACT_APP_SUPABASE_URL=your_project_url
+REACT_APP_SUPABASE_ANON_KEY=your_anon_key
 ```
 
 ## Tech Stack
 
-- **Frontend:** React
+- **Frontend:** React + Vite + SWC
 - **Backend:** Supabase, Node.js (as needed)
 - **Database:** PostgreSQL
 - **Design:** Figma
@@ -95,16 +74,3 @@ feat: add item suggestion form
 fix: resolve checklist status bug
 docs: update README
 ```
-
-## Feedback & Discussions
-
-Have an idea or found a bug?
-- Open an issue
-- Start a discussion
-- Suggest a feature
-
-We'd love to hear your feedback and improve the platform together.
-
-## Team
-
-Student development team working on a cultural planning platform for Balikbayan boxes.
