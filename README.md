@@ -35,28 +35,6 @@ This project is being developed by a student team to support more intentional, o
 - See item status updates
 - Collaborate with senders
 
-## Example Usage
-
-1. Create a box
-
-```
-Create new box -> Invite family members
-```
-
-2. Family suggests items
-
-```
-Add item: Shampoo
-Quantity: 3
-Note: Hard to find this brand locally
-```
-
-3. Sender reviews and confirms
-
-```
-Status: Included
-```
-
 ## Installation
 
 **Prerequisites**
@@ -66,7 +44,7 @@ Status: Included
 **Setup**
 
 ```
-git clone https://github.com/your-org/balikboxify.git
+git clone https://github.com/your-org/mybalikbox.git
 cd frontend
 npm install
 npm start
