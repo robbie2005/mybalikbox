@@ -4,7 +4,7 @@
 
 A collaborative Balikbayan box planning platform
 
-MyBalikBox is a web app that helps Filipino and Filipino American families plan meaningful Balikbayan boxes together. Instead of scattered messages and forgotten items, families can collaborate on shared checklists, explore cultural recommendations, and share the stories behind what they send.
+MyBalikBox is a mobile app that helps Filipino and Filipino American families plan meaningful Balikbayan boxes together. Instead of scattered messages and forgotten items, families can collaborate on shared checklists, explore cultural recommendations, and share the stories behind what they send.
 
 ## Highlights
 
@@ -40,7 +40,7 @@ REACT_APP_SUPABASE_ANON_KEY=your_anon_key
 
 ## Tech Stack
 
-- **Frontend:** React + Vite + SWC
+- **Frontend:** React Native + SWC
 - **Backend:** Supabase, Node.js (as needed)
 - **Database:** PostgreSQL
 - **Design:** Figma
