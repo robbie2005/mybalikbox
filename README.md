@@ -56,21 +56,23 @@ REACT_APP_SUPABASE_ANON_KEY=your_anon_key
 
 ## Contributing
 
-We welcome feedback, issues, and feature requests.
-
 **Basic rules:**
 - Branch from `dev`
 - Use branch names like:
-  - `feature/checklist`
-  - `feature/discover-page`
-  - `bugfix/login-error`
+  - `feature-name-checklist`
+  - `feature-name-discoverPage`
+  - `bugfix-name-error`
 - Open a pull request to `dev`
 - At least one review required
 
-**Commit style:**
+**Commit:**
 
 ```
-feat: add item suggestion form
-fix: resolve checklist status bug
-docs: update README
+git branch                                Ensure working on correct branch
+git checkout -b feature/<branch-name>     Create feature branch (if not done already)
+git add .                                 Stage changes
+git commit -m 'commit-message'            Commit
+git push origin feature/<branch-message>  Push branch to github
 ```
+- Open PR (pull request) to dev with desc of changes, must be reviewed by one teammate
+- Merge to dev after approval
