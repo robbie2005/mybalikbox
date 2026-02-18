@@ -1,5 +1,3 @@
-Here's the clean, emoji-free version:
-
 ---
 
 # BalikBoxify
