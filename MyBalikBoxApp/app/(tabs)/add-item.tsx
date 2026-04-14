@@ -11,6 +11,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,10 +36,21 @@ const ALL_ITEMS = 'All Items';
 
 type GridRow = { kind: 'custom' } | { kind: 'recommended'; item: RecommendedCatalogItem };
 
+function shuffleItems<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 export default function AddItemScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<string>(ALL_ITEMS);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoriesMenuOpen, setCategoriesMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [customModalOpen, setCustomModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
@@ -56,8 +68,13 @@ export default function AddItemScreen() {
     try {
       const rows = await fetchRecommendedItems();
       setCatalog(rows);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Could not load recommended items.';
+    } catch (e: unknown) {
+      const message =
+        e && typeof e === 'object' && 'message' in e && (e as { message: unknown }).message != null
+          ? String((e as { message: unknown }).message)
+          : e instanceof Error
+            ? e.message
+            : 'Could not load recommended items.';
       setCatalogError(message);
       setCatalog([]);
     } finally {
@@ -81,14 +98,18 @@ export default function AddItemScreen() {
   }, [filter, filterOptions]);
 
   const filteredRecommended = useMemo(() => {
-    let list = catalog;
-    if (filter !== ALL_ITEMS) {
+    let list = catalog.filter((i) => Number(i.reference_price) > 0);
+    if (selectedCategories.length > 0) {
+      list = list.filter((i) => selectedCategories.includes(i.category));
+    } else if (filter !== ALL_ITEMS) {
       list = list.filter((i) => i.category === filter);
+    } else {
+      list = shuffleItems(list);
     }
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((i) => i.name.toLowerCase().includes(q));
     return list;
-  }, [catalog, filter, query]);
+  }, [catalog, filter, query, selectedCategories]);
 
   const listData = useMemo((): GridRow[] => {
     return [{ kind: 'custom' }, ...filteredRecommended.map((item) => ({ kind: 'recommended' as const, item }))];
@@ -220,6 +241,12 @@ export default function AddItemScreen() {
     setLastInsertedChecklistId(null);
   }, []);
 
+  const toggleSelectedCategory = useCallback((category: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category],
+    );
+  }, []);
+
   return (
     <LinearGradient
       colors={[ChecklistDesign.gradientTop, ChecklistDesign.gradientBottom]}
@@ -231,6 +258,9 @@ export default function AddItemScreen() {
         numColumns={2}
         keyExtractor={(row) => (row.kind === 'custom' ? 'custom-create' : row.item.id)}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={catalogLoading} onRefresh={() => void loadCatalog()} tintColor={ChecklistDesign.accentOrange} />
+        }
         ListHeaderComponent={
           <View>
             <Text style={styles.title}>Add Items</Text>
@@ -252,29 +282,51 @@ export default function AddItemScreen() {
 
             {catalogError ? (
               <View style={styles.banner}>
-                <Text style={styles.bannerText}>{catalogError}</Text>
+                <Text style={styles.bannerText} selectable>
+                  {catalogError}
+                </Text>
                 <Pressable onPress={() => void loadCatalog()} style={styles.bannerBtn}>
                   <Text style={styles.bannerBtnText}>Retry</Text>
                 </Pressable>
               </View>
             ) : null}
 
-            <View style={styles.filterRow}>
-              {filterOptions.map((f) => {
-                const active = filter === f;
-                return (
-                  <Pressable
-                    key={f}
-                    onPress={() => setFilter(f)}
-                    style={[styles.filterPill, active && styles.filterPillActive]}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: active }}>
-                    <Text style={[styles.filterText, active && styles.filterTextActive]} numberOfLines={1}>
-                      {f}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.filterBarRow}>
+              <Pressable
+                onPress={() => setCategoriesMenuOpen(true)}
+                style={styles.categoryMenuButton}
+                accessibilityRole="button"
+                accessibilityLabel="Open categories menu">
+                <MaterialIcons name="tune" size={24} color={ChecklistDesign.textPrimary} />
+                {selectedCategories.length > 0 ? (
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryBadgeText}>{selectedCategories.length}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterScrollContent}>
+                {filterOptions.map((f) => {
+                  const active = selectedCategories.length > 0 ? selectedCategories.includes(f) : filter === f;
+                  return (
+                    <Pressable
+                      key={f}
+                      onPress={() => {
+                        setSelectedCategories([]);
+                        setFilter(f);
+                      }}
+                      style={[styles.filterPill, active && styles.filterPillActive]}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: active }}>
+                      <Text style={[styles.filterText, active && styles.filterTextActive]} numberOfLines={1}>
+                        {f}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
 
             <Text style={styles.sectionTitle}>Items you might like</Text>
@@ -282,6 +334,12 @@ export default function AddItemScreen() {
               <View style={styles.catalogLoading}>
                 <ActivityIndicator size="large" color={ChecklistDesign.accentOrange} />
               </View>
+            ) : null}
+            {!catalogLoading && !catalogError && catalog.length === 0 ? (
+              <Text style={styles.emptyHint}>
+                No items loaded. Confirm rows in Supabase have is_active = true, RLS allows anon read, and
+                EXPO_PUBLIC_SUPABASE_URL matches this project. Pull down to retry.
+              </Text>
             ) : null}
           </View>
         }
@@ -291,13 +349,15 @@ export default function AddItemScreen() {
         ]}
         renderItem={({ item: row }) => {
           if (row.kind === 'custom') {
+            const showExpandedCustom = filteredRecommended.length === 0;
             return (
-              <View style={styles.cardWrap}>
+              <View style={[styles.cardWrap, showExpandedCustom && styles.cardWrapFull]}>
                 <Pressable
                   onPress={onOpenCustom}
                   disabled={busy}
                   style={({ pressed }) => [
                     styles.customCard,
+                    showExpandedCustom && styles.customCardExpanded,
                     pressed && { opacity: 0.94 },
                     busy && { opacity: 0.6 },
                   ]}
@@ -358,6 +418,53 @@ export default function AddItemScreen() {
           );
         }}
       />
+
+      <Modal
+        visible={categoriesMenuOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setCategoriesMenuOpen(false)}>
+        <View style={styles.dropdownBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCategoriesMenuOpen(false)} />
+          <View style={styles.dropdownCard}>
+            <Text style={styles.dropdownTitle}>Categories</Text>
+            <ScrollView style={styles.dropdownList} showsVerticalScrollIndicator={false}>
+              {filterOptions
+                .filter((f) => f !== ALL_ITEMS)
+                .map((category) => {
+                  const selected = selectedCategories.includes(category);
+                  return (
+                    <Pressable
+                      key={category}
+                      onPress={() => toggleSelectedCategory(category)}
+                      style={styles.dropdownItem}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}>
+                      <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                        {selected ? <MaterialIcons name="check" size={14} color="#fff" /> : null}
+                      </View>
+                      <Text style={styles.dropdownItemText}>{category}</Text>
+                    </Pressable>
+                  );
+                })}
+            </ScrollView>
+            <View style={styles.dropdownActions}>
+              <Pressable
+                onPress={() => setSelectedCategories([])}
+                style={styles.dropdownGhostBtn}
+                accessibilityRole="button">
+                <Text style={styles.dropdownGhostText}>Clear</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setCategoriesMenuOpen(false)}
+                style={styles.dropdownPrimaryBtn}
+                accessibilityRole="button">
+                <Text style={styles.dropdownPrimaryText}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={customModalOpen}
@@ -530,22 +637,28 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
-  bannerText: { fontSize: 13, color: '#5C5346' },
+  bannerText: { fontSize: 13, color: '#5C5346', lineHeight: 18 },
   bannerBtn: { alignSelf: 'flex-start' },
   bannerBtnText: { fontSize: 14, fontWeight: '700', color: ChecklistDesign.accentOrange },
-  filterRow: {
+  filterBarRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 14,
   },
+  filterScrollContent: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingLeft: 10,
+    alignItems: 'center',
+  },
   filterPill: {
-    paddingVertical: 10,
+    height: 44,
     paddingHorizontal: 16,
     borderRadius: 22,
     backgroundColor: ChecklistDesign.tabInactive,
     maxWidth: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterPillActive: {
     backgroundColor: ChecklistDesign.tabActive,
@@ -558,6 +671,108 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: ChecklistDesign.textPrimary,
   },
+  categoryMenuButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: ChecklistDesign.tabInactive,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginRight: 10,
+  },
+  categoryBadge: {
+    position: 'absolute',
+    right: -3,
+    top: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: ChecklistDesign.accentOrange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  categoryBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dropdownBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dropdownCard: {
+    width: '100%',
+    maxWidth: 380,
+    maxHeight: '70%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+  },
+  dropdownTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: ChecklistDesign.textPrimary,
+    marginBottom: 12,
+  },
+  dropdownList: {
+    maxHeight: 360,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#C9BBA6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: ChecklistDesign.accentOrange,
+    borderColor: ChecklistDesign.accentOrange,
+  },
+  dropdownItemText: {
+    flex: 1,
+    fontSize: 15,
+    color: ChecklistDesign.textPrimary,
+  },
+  dropdownActions: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  dropdownGhostBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: ChecklistDesign.tabInactive,
+  },
+  dropdownGhostText: {
+    color: ChecklistDesign.textMuted,
+    fontWeight: '700',
+  },
+  dropdownPrimaryBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: ChecklistDesign.tanButton,
+  },
+  dropdownPrimaryText: {
+    color: ChecklistDesign.textPrimary,
+    fontWeight: '800',
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -569,10 +784,20 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     alignItems: 'center',
   },
+  emptyHint: {
+    fontSize: 13,
+    color: ChecklistDesign.textMuted,
+    lineHeight: 18,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
   cardWrap: {
     flex: 1,
     paddingHorizontal: 6,
     paddingVertical: 8,
+  },
+  cardWrapFull: {
+    flexBasis: '100%',
   },
   card: {
     backgroundColor: ChecklistDesign.card,
@@ -590,6 +815,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    marginTop: 10,
+    marginHorizontal: 10,
+    borderRadius: 12,
   },
   cardImage: {
     width: '100%',
@@ -637,16 +865,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 2,
     borderColor: '#D4B87A',
+    flex: 1,
     paddingVertical: 20,
     paddingHorizontal: 14,
     alignItems: 'center',
-    minHeight: 220,
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+  },
+  customCardExpanded: {
+    minHeight: 360,
   },
   customIconCircle: {
     width: 72,
