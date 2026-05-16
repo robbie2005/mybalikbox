@@ -1,4 +1,5 @@
 import type { RecommendedCatalogItem } from '@/services/recommended-items-catalog';
+import { ensureProfileRow } from '@/services/profiles';
 import { supabase } from '@/services/supabase';
 
 /**
@@ -8,11 +9,6 @@ import { supabase } from '@/services/supabase';
 function getPinnedBoxId(): string | null {
   const id = process.env.EXPO_PUBLIC_ACTIVE_BOX_ID;
   return id && id.length > 0 ? id : null;
-}
-
-async function ensureProfileRow(userId: string): Promise<void> {
-  const { error } = await supabase.from('profiles').upsert({ id: userId }, { onConflict: 'id' });
-  if (error) throw error;
 }
 
 export async function resolveActiveBoxId(): Promise<string | null> {
@@ -54,7 +50,7 @@ export async function insertChecklistItem(params: {
     throw new Error('Sign in to add items to your box.');
   }
 
-  await ensureProfileRow(user.id);
+  await ensureProfileRow(user);
 
   const row = {
     box_id: params.boxId,

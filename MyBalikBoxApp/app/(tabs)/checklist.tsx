@@ -49,7 +49,7 @@ function orderCategories(categories: string[]): string[] {
   return [...ordered, ...rest];
 }
 
-function groupByCategory(rows: ChecklistRow[]): Array<{ category: string; items: ChecklistRow[] }> {
+function groupByCategory(rows: ChecklistRow[]): { category: string; items: ChecklistRow[] }[] {
   const map = new Map<string, ChecklistRow[]>();
   for (const row of rows) {
     const category = row.category?.trim() || 'Uncategorized';
