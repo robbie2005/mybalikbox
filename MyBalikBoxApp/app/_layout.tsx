@@ -37,6 +37,7 @@ export default function RootLayout() {
         <Stack.Screen name="account-information" options={{ headerShown: false }} />
         <Stack.Screen name="manage-friends" options={{ headerShown: false }} />
         <Stack.Screen name="add-friends" options={{ headerShown: false }} />
+        <Stack.Screen name="friend-profile" options={{ headerShown: false }} />
         <Stack.Screen name="edit-bio" options={{ headerShown: false }} />
         <Stack.Screen name="new-post" options={{ headerShown: false }} />
         <Stack.Screen name="new-post-compose" options={{ headerShown: false }} />
