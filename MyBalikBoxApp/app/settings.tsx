@@ -1,12 +1,38 @@
+import { ProfileAvatar } from '@/components/profile-avatar';
+import { ChecklistDesign } from '@/constants/checklist-design';
+import { fetchCurrentProfile } from '@/services/profile';
+import { supabase } from '@/services/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function SettingsScreen() {
+  const [displayName, setDisplayName] = useState('User');
+  const [email, setEmail] = useState('');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setEmail(user?.email ?? '');
+
+      const profile = await fetchCurrentProfile();
+      if (!profile) return;
+      setDisplayName(profile.displayName);
+      setAvatarUri(profile.avatarUrl);
+    })();
+  }, []);
+
   return (
-    <LinearGradient colors={['#A9D0DA', '#F9FBFA']} style={styles.container}>
+    <LinearGradient
+      colors={[ChecklistDesign.gradientTop, ChecklistDesign.gradientBottom]}
+      style={styles.container}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}>
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={16} color="#FFFFFF" />
@@ -16,31 +42,27 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.profileCard}>
-        <Image
-          source={{
-            uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=500',
-          }}
-          style={styles.avatar}
-          contentFit="cover"
-        />
+        <ProfileAvatar uri={avatarUri} size={65} style={styles.avatar} />
 
         <View style={styles.profileText}>
-          <Text style={styles.name}>Mikey Bustos</Text>
-          <Text style={styles.email}>mikeybustos@gmail.com</Text>
+          <Text style={styles.name}>{displayName}</Text>
+          <Text style={styles.email}>{email}</Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Other Settings</Text>
 
       <View style={styles.card}>
-        <SettingsRow title="Account Information" onPress={() => router.push('/account-information')} />        <Divider />
+        <SettingsRow title="Account Information" onPress={() => router.push('/account-information')} />
+        <Divider />
         <SettingsRow title="Password" onPress={() => router.push('/password-page')} />
       </View>
 
       <View style={styles.card}>
         <SettingsRow title="About application" onPress={() => router.push('/about-application')} />
         <Divider />
-        <SettingsRow title="Help/FAQ" onPress={() => router.push('/help-faq')} />        <Divider />
+        <SettingsRow title="Help/FAQ" onPress={() => router.push('/help-faq')} />
+        <Divider />
         <Pressable style={styles.row} onPress={() => {}}>
           <Text style={styles.deleteText}>Delete Account</Text>
         </Pressable>

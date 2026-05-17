@@ -68,13 +68,14 @@ export default function SignInScreen() {
       if (error) throw error;
       if (!data.user) throw new Error('Unable to sign in.');
 
+      const authUsername =
+        (typeof data.user.user_metadata?.display_name === 'string' && data.user.user_metadata.display_name) ||
+        data.user.email?.split('@')[0] ||
+        null;
       await ensureUserBootstrap({
         userId: data.user.id,
-        displayName:
-          (typeof data.user.user_metadata?.display_name === 'string' && data.user.user_metadata.display_name) ||
-          (typeof data.user.user_metadata?.name === 'string' && data.user.user_metadata.name) ||
-          data.user.email ||
-          null,
+        username: authUsername,
+        displayName: authUsername,
       });
       await syncActiveBoxFromServer(data.user.id);
       router.replace('/(tabs)');
@@ -111,14 +112,15 @@ export default function SignInScreen() {
       if (exchangeError) throw exchangeError;
       if (!exchanged?.user) throw new Error('OAuth session was not created.');
 
+      const oauthUsername =
+        (typeof exchanged.user.user_metadata?.display_name === 'string' &&
+          exchanged.user.user_metadata.display_name) ||
+        exchanged.user.email?.split('@')[0] ||
+        null;
       await ensureUserBootstrap({
         userId: exchanged.user.id,
-        displayName:
-          (typeof exchanged.user.user_metadata?.display_name === 'string' &&
-            exchanged.user.user_metadata.display_name) ||
-          (typeof exchanged.user.user_metadata?.name === 'string' && exchanged.user.user_metadata.name) ||
-          exchanged.user.email ||
-          null,
+        username: oauthUsername,
+        displayName: oauthUsername,
       });
       router.replace('/(tabs)');
     } catch (error) {

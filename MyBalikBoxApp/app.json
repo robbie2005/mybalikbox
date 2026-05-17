@@ -30,6 +30,21 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MyBalikBox to access your photos to set a profile picture and create posts.",
+          "cameraPermission": "Allow MyBalikBox to use your camera to capture photos and videos for posts."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow MyBalikBox to access your photos and videos for new posts.",
+          "savePhotosPermission": "Allow MyBalikBox to save photos to your library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -40,7 +55,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

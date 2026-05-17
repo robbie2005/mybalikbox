@@ -74,10 +74,6 @@ export default function HomeScreen() {
       userId = user?.id ?? null;
 
       if (userId && user) {
-        const metadataName =
-          (typeof user.user_metadata?.display_name === 'string' && user.user_metadata.display_name.trim()) ||
-          (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim()) ||
-          null;
         const emailName = user.email?.split('@')[0]?.trim() || null;
 
         const { data: profile, error: profileErr } = await supabase
@@ -90,7 +86,7 @@ export default function HomeScreen() {
           console.warn('Profile load failed', profileErr);
         }
 
-        const resolvedName = profile?.display_name?.trim() || metadataName || emailName || 'User';
+        const resolvedName = profile?.display_name?.trim() || emailName || 'User';
         setWelcomeName(resolvedName);
       } else {
         setWelcomeName('User');

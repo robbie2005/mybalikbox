@@ -1,5 +1,6 @@
 import { BalikBoxLogo } from '@/components/balikbox-logo';
 import { ensureUserBootstrap } from '@/services/auth-bootstrap';
+import { isMissingUsernameColumnError } from '@/services/profile-columns';
 import { supabase } from '@/services/supabase';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Linking from 'expo-linking';
@@ -94,11 +95,21 @@ export default function SignUpScreen() {
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from('profiles')
             .select('id')
-            .ilike('display_name', cleanUsername)
+            .ilike('username', cleanUsername)
             .limit(1);
+
+          if (error && isMissingUsernameColumnError(error)) {
+            const legacy = await supabase
+              .from('profiles')
+              .select('id')
+              .ilike('display_name', cleanUsername)
+              .limit(1);
+            data = legacy.data;
+            error = legacy.error;
+          }
 
           if (!active) return;
           if (error) {
@@ -160,14 +171,16 @@ export default function SignUpScreen() {
       if (exchangeError) throw exchangeError;
       if (!exchanged?.user) throw new Error('OAuth session was not created.');
 
+      const oauthUsername =
+        (typeof exchanged.user.user_metadata?.display_name === 'string' &&
+          exchanged.user.user_metadata.display_name) ||
+        (typeof exchanged.user.user_metadata?.name === 'string' && exchanged.user.user_metadata.name) ||
+        exchanged.user.email?.split('@')[0] ||
+        null;
       await ensureUserBootstrap({
         userId: exchanged.user.id,
-        displayName:
-          (typeof exchanged.user.user_metadata?.display_name === 'string' &&
-            exchanged.user.user_metadata.display_name) ||
-          (typeof exchanged.user.user_metadata?.name === 'string' && exchanged.user.user_metadata.name) ||
-          exchanged.user.email ||
-          null,
+        username: oauthUsername,
+        displayName: oauthUsername,
       });
       router.replace('/(tabs)');
     } catch (error) {
@@ -236,7 +249,11 @@ export default function SignUpScreen() {
 
       if (signedInUser) {
         step = 'signUp:bootstrap_user';
-        await ensureUserBootstrap({ userId: signedInUser.id, displayName: cleanUsername });
+        await ensureUserBootstrap({
+          userId: signedInUser.id,
+          username: cleanUsername,
+          displayName: cleanUsername,
+        });
         step = 'signUp:navigate_home';
         router.replace('/(tabs)');
         return;

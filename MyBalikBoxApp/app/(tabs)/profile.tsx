@@ -1,78 +1,141 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ProfileAvatar } from '@/components/profile-avatar';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { ChecklistDesign } from '@/constants/checklist-design';
+import {
+  fetchCurrentProfile,
+  fetchProfileStats,
+  type ProfileStats,
+  type UserProfile,
+} from '@/services/profile';
+
+const AVATAR_SIZE = 128;
+const AVATAR_BORDER = 3;
 
 export default function ProfileScreen() {
-  return (
-    <LinearGradient colors={['#A9D0DA', '#F9FBFA']} style={styles.container}>
-      <Pressable
-        style={styles.settingsButton}
-        onPress={() => router.push('/settings')}
-      >
-      <Image
-        source={require('@/assets/images/image.png')}
-        style={styles.settingsIcon}
-        contentFit="contain"
-        />
-      </Pressable>
+  const insets = useSafeAreaInsets();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [stats, setStats] = useState<ProfileStats>({ boxes: 0, friends: 0, posts: 0 });
 
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    try {
+      const current = await fetchCurrentProfile();
+      if (!current) {
+        setProfile(null);
+        return;
+      }
+      setProfile(current);
+      const profileStats = await fetchProfileStats(current.id);
+      setStats(profileStats);
+    } catch {
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile]),
+  );
+
+  return (
+    <LinearGradient
+      colors={[ChecklistDesign.gradientTop, ChecklistDesign.gradientBottom]}
+      style={styles.container}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 12, paddingBottom: 150 + insets.bottom },
+        ]}
       >
-        <Image
-          source={{
-            uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=500',
-          }}
-          style={styles.avatar}
-          contentFit="cover"
-        />
-
-        <Text style={styles.name}>Mikey Bustos</Text>
-        <Text style={styles.username}>@mikey_bustos</Text>
-
-        <Text style={styles.bio}>
-          Love bundling up, eating halo-halo, and keeping{'\n'}
-          family close across miles.
-        </Text>
-
-        <View style={styles.locationRow}>
-          <MaterialIcons name="location-pin" size={15} color="#2C2C2C" />
-          <Text style={styles.location}>New York, NY</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerSpacer} />
+          <Pressable
+            style={styles.settingsButton}
+            onPress={() => router.push('/settings')}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+          >
+            <Image
+              source={require('@/assets/images/image.png')}
+              style={styles.settingsIcon}
+              contentFit="contain"
+            />
+          </Pressable>
         </View>
 
-        <View style={styles.statsCard}>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>2</Text>
-            <Text style={styles.statLabel}>BOXES</Text>
-          </View>
+        {loading && !profile ? (
+          <ActivityIndicator style={styles.loader} size="large" color="#5F6670" />
+        ) : (
+          <>
+            <Pressable
+              style={styles.profileBlock}
+              onPress={() => router.push('/edit-bio')}
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+            >
+              <View style={styles.avatarBorder}>
+                <ProfileAvatar uri={profile?.avatarUrl} size={AVATAR_SIZE} />
+              </View>
 
-          <View style={styles.divider} />
+              <Text style={styles.name}>{profile?.displayName ?? 'User'}</Text>
+              <Text style={styles.username}>{profile?.handle ?? '@username'}</Text>
 
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>20</Text>
-            <Text style={styles.statLabel}>FRIENDS</Text>
-          </View>
+              <Text style={styles.bio}>{profile?.bio}</Text>
 
-          <View style={styles.divider} />
+              <View style={styles.locationRow}>
+                <MaterialIcons name="location-pin" size={15} color="#2C2C2C" />
+                <Text style={styles.location}>{profile?.location ?? 'Irvine, CA'}</Text>
+              </View>
+            </Pressable>
 
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>15</Text>
-            <Text style={styles.statLabel}>POSTS</Text>
-          </View>
-        </View>
+            <View style={styles.statsCard}>
+              <View style={styles.statBox}>
+                <Text style={styles.statNumber}>{stats.boxes}</Text>
+                <Text style={styles.statLabel}>BOXES</Text>
+              </View>
 
-        <Pressable style={styles.manageButton} onPress={() => {}}>
-          <Text style={styles.manageButtonText}>Manage Friends</Text>
-        </Pressable>
+              <View style={styles.divider} />
 
-        <View style={styles.grid}>
-          {Array.from({ length: 9 }).map((_, index) => (
-            <View key={index} style={styles.gridItem} />
-          ))}
-        </View>
+              <View style={styles.statBox}>
+                <Text style={styles.statNumber}>{stats.friends}</Text>
+                <Text style={styles.statLabel}>FRIENDS</Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.statBox}>
+                <Text style={styles.statNumber}>{stats.posts}</Text>
+                <Text style={styles.statLabel}>POSTS</Text>
+              </View>
+            </View>
+
+            <Pressable style={styles.manageButton} onPress={() => {}}>
+              <Text style={styles.manageButtonText}>Manage Friends</Text>
+            </Pressable>
+
+            <View style={styles.grid}>
+              {Array.from({ length: 9 }).map((_, index) => (
+                <View key={index} style={styles.gridItem} />
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </LinearGradient>
   );
@@ -84,28 +147,47 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    paddingHorizontal: 35,
-    paddingTop: 65,
-    paddingBottom: 150,
+    paddingHorizontal: 20,
+  },
+  headerRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 0,
+  },
+  headerSpacer: {
+    flex: 1,
+  },
+  loader: {
+    marginTop: 80,
   },
   settingsIcon: {
-  width: 32,
-  height: 32,
+    width: 26,
+    height: 26,
   },
   settingsButton: {
-    position: 'absolute',
-    top: 33,
-    right: 35,
-    zIndex: 10,
+    padding: 4,
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 74.5,
+  avatarBorder: {
+    width: AVATAR_SIZE + AVATAR_BORDER * 2,
+    height: AVATAR_SIZE + AVATAR_BORDER * 2,
+    borderRadius: (AVATAR_SIZE + AVATAR_BORDER * 2) / 2,
+    borderWidth: AVATAR_BORDER,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  profileBlock: {
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 4,
   },
   name: {
     marginTop: 12,
@@ -137,8 +219,8 @@ const styles = StyleSheet.create({
     color: '#2C2C2C',
   },
   statsCard: {
+    alignSelf: 'stretch',
     marginTop: 21,
-    width: '110%',
     height: 53,
     borderRadius: 21,
     backgroundColor: '#FFF9EF',
@@ -170,8 +252,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#E7C9A8',
   },
   manageButton: {
+    alignSelf: 'stretch',
     marginTop: 10,
-    width: '110%',
     height: 32,
     borderRadius: 14,
     backgroundColor: '#94B8C3',

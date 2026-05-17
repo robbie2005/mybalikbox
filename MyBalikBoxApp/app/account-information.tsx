@@ -1,14 +1,26 @@
+import { ProfileAvatar } from '@/components/profile-avatar';
+import { fetchCurrentProfile } from '@/services/profile';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type PopupType = 'phone' | 'email' | null;
 
 export default function AccountInformationScreen() {
   const [popup, setPopup] = useState<PopupType>(null);
+  const [displayName, setDisplayName] = useState('User');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const profile = await fetchCurrentProfile();
+      if (!profile) return;
+      setDisplayName(profile.displayName);
+      setAvatarUri(profile.avatarUrl);
+    })();
+  }, []);
 
   return (
     <View style={styles.screen}>
@@ -19,15 +31,9 @@ export default function AccountInformationScreen() {
 
         <Text style={styles.header}>Account Information</Text>
 
-        <Image
-          source={{
-            uri: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=500',
-          }}
-          style={styles.avatar}
-          contentFit="cover"
-        />
+        <ProfileAvatar uri={avatarUri} size={100} style={styles.avatar} />
 
-        <Text style={styles.name}>Mikey Bustos</Text>
+        <Text style={styles.name}>{displayName}</Text>
 
         <Text style={styles.sectionTitle}>Account Information</Text>
 

@@ -1,6 +1,9 @@
+import 'react-native-gesture-handler';
+
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -13,8 +16,9 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
@@ -31,12 +35,16 @@ export default function RootLayout() {
         <Stack.Screen name="help-faq" options={{ headerShown: false }} />
         <Stack.Screen name="password-page" options={{ headerShown: false }} />
         <Stack.Screen name="account-information" options={{ headerShown: false }} />
+        <Stack.Screen name="edit-bio" options={{ headerShown: false }} />
+        <Stack.Screen name="new-post" options={{ headerShown: false }} />
+        <Stack.Screen name="new-post-compose" options={{ headerShown: false }} />
         <Stack.Screen name="change-phone" options={{ headerShown: false }} />
         <Stack.Screen name="change-email" options={{ headerShown: false }} />
         <Stack.Screen name="verify-email" options={{ headerShown: false }} />
         <Stack.Screen name="verify-phone" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
