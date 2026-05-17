@@ -105,7 +105,7 @@ export async function fetchCurrentProfile(): Promise<UserProfile | null> {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
-  if (authError) throw formatServiceError('profile:auth', authError);
+  if (authError) return null;
   if (!user) return null;
 
   const metadataUsername =

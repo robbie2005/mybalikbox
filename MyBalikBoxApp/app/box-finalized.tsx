@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BalikBoxLogo } from '@/components/balikbox-logo';
@@ -63,7 +63,7 @@ export default function BoxFinalizedScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-            onPress={() => Alert.alert('Find Dropoff Locations', 'Coming soon.')}
+            onPress={() => router.push('/(tabs)/find-dropoff')}
             accessibilityRole="button"
             accessibilityLabel="Find dropoff locations">
             <Text style={styles.primaryButtonText}>Find Dropoff Locations</Text>

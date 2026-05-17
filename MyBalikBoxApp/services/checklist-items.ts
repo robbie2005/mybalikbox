@@ -137,6 +137,15 @@ export async function addCustomItemToBox(
   });
 }
 
+export async function updateChecklistItemQuantity(id: string, quantity: number): Promise<void> {
+  const { error } = await supabase
+    .from('box_checklist_items')
+    .update({ quantity: Math.max(1, quantity) })
+    .eq('id', id);
+  if (error) throw mapPg(error);
+  notifyChecklistChanged();
+}
+
 export async function deleteChecklistItemById(id: string): Promise<void> {
   const { error } = await supabase.from('box_checklist_items').delete().eq('id', id);
   if (error) throw mapPg(error);

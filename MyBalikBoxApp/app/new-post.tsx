@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,8 +15,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { captureRef } from 'react-native-view-shot';
-
 import { VideoPreview } from '@/components/new-post/video-preview';
 import { ZoomableMedia } from '@/components/new-post/zoomable-media';
 import { ChecklistDesign } from '@/constants/checklist-design';
@@ -50,8 +48,6 @@ export default function NewPostScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [capturingSnapshot, setCapturingSnapshot] = useState(false);
-  const previewCaptureRef = useRef<View>(null);
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
@@ -131,11 +127,12 @@ export default function NewPostScreen() {
     onSelectItem(captured);
   };
 
-  const onNext = async () => {
+  const onNext = () => {
     if (!selected || !previewUri) {
       Alert.alert('Select media', 'Choose a photo or video to continue.');
       return;
     }
+<<<<<<< HEAD
 
     let mediaUri = previewUri;
     let mediaType: 'photo' | 'video' = selected.mediaType;
@@ -167,6 +164,14 @@ export default function NewPostScreen() {
       width: selected.width,
       height: selected.height,
       assetId: selected.id,
+=======
+    router.push({
+      pathname: '/new-post-compose',
+      params: {
+        mediaUri: previewUri,
+        mediaType: selected.mediaType,
+      },
+>>>>>>> 2c0ea69 (Made changes to dropoff)
     });
     router.push('/new-post-compose');
   };
@@ -210,7 +215,6 @@ export default function NewPostScreen() {
     return (
       <ZoomableMedia
         key={selected.id}
-        ref={previewCaptureRef}
         resetKey={selected.id}
         style={styles.previewMedia}>
         {selected.mediaType === 'video' ? (
@@ -255,7 +259,7 @@ export default function NewPostScreen() {
         <Pressable
           style={styles.headerNextBtn}
           onPress={() => void onNext()}
-          disabled={loading || previewLoading || capturingSnapshot || !previewUri}
+          disabled={loading || previewLoading || !previewUri}
           accessibilityRole="button"
           accessibilityLabel="Next">
           <Text style={styles.headerNextText}>Next</Text>

@@ -52,6 +52,20 @@ export default function TabLayout() {
           title: 'Profile',
         }}
       />
+      <Tabs.Screen
+        name="find-dropoff"
+        options={{
+          href: null,
+          title: 'Find Dropoff',
+        }}
+      />
+      <Tabs.Screen
+        name="dropoff-results"
+        options={{
+          href: null,
+          title: 'Dropoff Results',
+        }}
+      />
     </Tabs>
   );
 }
