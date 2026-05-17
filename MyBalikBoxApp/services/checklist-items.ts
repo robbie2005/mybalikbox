@@ -143,7 +143,7 @@ export async function updateChecklistItemQuantity(id: string, quantity: number):
     .update({ quantity: Math.max(1, quantity) })
     .eq('id', id);
   if (error) throw mapPg(error);
-  notifyChecklistChanged();
+  // No notifyChecklistChanged — checklist updates optimistically; avoids full reload on +/-.
 }
 
 export async function deleteChecklistItemById(id: string): Promise<void> {

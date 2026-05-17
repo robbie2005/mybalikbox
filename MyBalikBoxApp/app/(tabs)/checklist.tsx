@@ -149,8 +149,8 @@ export default function SharedChecklistScreen() {
   const [expandedSections, setExpandedSections] = useState({ included: true, pending: true });
   const [expandedCategory, setExpandedCategory] = useState<Record<string, boolean>>({});
 
-  const loadChecklist = useCallback(async () => {
-    setLoading(true);
+  const loadChecklist = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const boxId = await resolveActiveBoxId();
       if (!boxId) { setRows([]); setDisplayNameByUserId({}); return; }
@@ -183,7 +183,11 @@ export default function SharedChecklistScreen() {
   }, []);
 
   useEffect(() => { void loadChecklist(); }, [loadChecklist]);
-  useEffect(() => { return subscribeChecklistChanged(() => { void loadChecklist(); }); }, [loadChecklist]);
+  useEffect(() => {
+    return subscribeChecklistChanged(() => {
+      void loadChecklist({ silent: true });
+    });
+  }, [loadChecklist]);
 
   const includedItems = useMemo(() => rows.filter((r) => INCLUDED_STATUSES.includes(r.status)), [rows]);
   const pendingItems = useMemo(() => rows.filter((r) => PENDING_STATUSES.includes(r.status)), [rows]);

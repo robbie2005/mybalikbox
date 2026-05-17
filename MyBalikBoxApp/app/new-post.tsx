@@ -127,39 +127,15 @@ export default function NewPostScreen() {
     onSelectItem(captured);
   };
 
-  const onNext = async () => {
+  const onNext = () => {
     if (!selected || !previewUri) {
       Alert.alert('Select media', 'Choose a photo or video to continue.');
       return;
     }
 
-    let mediaUri = previewUri;
-    let mediaType: 'photo' | 'video' = selected.mediaType;
-
-    // Photos: capture zoomed frame as snapshot. Videos: keep playable URI (view-shot of VideoView is unreliable).
-    if (previewCaptureRef.current && selected.mediaType !== 'video') {
-      setCapturingSnapshot(true);
-      try {
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        });
-        const snapshotUri = await captureRef(previewCaptureRef, {
-          format: 'jpg',
-          quality: 0.92,
-          result: 'tmpfile',
-        });
-        mediaUri = snapshotUri;
-        mediaType = 'photo';
-      } catch {
-        // Fall back to the resolved asset URI if the view snapshot fails.
-      } finally {
-        setCapturingSnapshot(false);
-      }
-    }
-
     setPendingPostMedia({
-      uri: mediaUri,
-      mediaType,
+      uri: previewUri,
+      mediaType: selected.mediaType,
       width: selected.width,
       height: selected.height,
       assetId: selected.id,
