@@ -127,12 +127,11 @@ export default function NewPostScreen() {
     onSelectItem(captured);
   };
 
-  const onNext = () => {
+  const onNext = async () => {
     if (!selected || !previewUri) {
       Alert.alert('Select media', 'Choose a photo or video to continue.');
       return;
     }
-<<<<<<< HEAD
 
     let mediaUri = previewUri;
     let mediaType: 'photo' | 'video' = selected.mediaType;
@@ -164,14 +163,6 @@ export default function NewPostScreen() {
       width: selected.width,
       height: selected.height,
       assetId: selected.id,
-=======
-    router.push({
-      pathname: '/new-post-compose',
-      params: {
-        mediaUri: previewUri,
-        mediaType: selected.mediaType,
-      },
->>>>>>> 2c0ea69 (Made changes to dropoff)
     });
     router.push('/new-post-compose');
   };
