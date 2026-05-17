@@ -5,6 +5,7 @@ import {
   PROFILE_SELECT_FULL,
   PROFILE_SELECT_LEGACY,
 } from '@/services/profile-columns';
+import { countPostsByUser } from '@/services/feed-posts';
 import { supabase } from '@/services/supabase';
 
 export const DEFAULT_LOCATION = 'Irvine, CA';
@@ -138,8 +139,15 @@ export async function fetchProfileStats(userId: string): Promise<ProfileStats> {
   const boxIds = [...new Set((memberships ?? []).map((m) => m.box_id as string))];
   const boxes = boxIds.length;
 
+  let posts = 0;
+  try {
+    posts = await countPostsByUser(userId);
+  } catch {
+    posts = 0;
+  }
+
   if (boxIds.length === 0) {
-    return { boxes: 0, friends: 0, posts: 0 };
+    return { boxes: 0, friends: 0, posts };
   }
 
   const { data: peers, error: peersError } = await supabase
@@ -155,7 +163,7 @@ export async function fetchProfileStats(userId: string): Promise<ProfileStats> {
       .filter((id) => id !== userId),
   );
 
-  return { boxes, friends: friendIds.size, posts: 0 };
+  return { boxes, friends: friendIds.size, posts };
 }
 
 export async function updateProfile(params: {

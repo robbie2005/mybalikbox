@@ -1,9 +1,11 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ProfileAvatar } from '@/components/profile-avatar';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -13,13 +15,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CommentsSheet } from '@/components/feed/comments-sheet';
 import { FeedPostCard } from '@/components/feed/feed-post-card';
 import { ChecklistDesign } from '@/constants/checklist-design';
-import {
-  FEED_CATEGORIES,
-  MOCK_FEED_POSTS,
-  type FeedCategory,
-} from '@/constants/feed-mock';
+import { FEED_CATEGORIES, type FeedCategory, type FeedPost } from '@/constants/feed';
+import { consumePendingFeedScrollPostId } from '@/services/feed-navigation';
+import { deleteFeedPost, fetchFeedPosts, likeFeedPost } from '@/services/feed-posts';
 import { fetchCurrentProfile } from '@/services/profile';
 
 export default function FeedScreen() {
@@ -27,24 +28,131 @@ export default function FeedScreen() {
   const [selectedCategory, setSelectedCategory] = useState<FeedCategory>('All');
   const [displayName, setDisplayName] = useState('You');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const [scrollToPostId, setScrollToPostId] = useState<string | null>(null);
+  const feedScrollRef = useRef<ScrollView>(null);
+  const postOffsetsRef = useRef<Map<string, number>>(new Map());
 
-  useEffect(() => {
-    void (async () => {
-      const profile = await fetchCurrentProfile();
-      if (!profile) return;
-      setDisplayName(profile.displayName);
-      setAvatarUri(profile.avatarUrl);
-    })();
+  const loadFeed = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [profile, feedPosts] = await Promise.all([fetchCurrentProfile(), fetchFeedPosts()]);
+      if (profile) {
+        setCurrentUserId(profile.id);
+        setDisplayName(profile.displayName);
+        setAvatarUri(profile.avatarUrl);
+      } else {
+        setCurrentUserId(null);
+      }
+      setPosts(feedPosts);
+    } catch (err) {
+      Alert.alert('Feed', err instanceof Error ? err.message : 'Could not load posts.');
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      const pendingPostId = consumePendingFeedScrollPostId();
+      if (pendingPostId) {
+        setSelectedCategory('All');
+        setScrollToPostId(pendingPostId);
+      }
+      void loadFeed();
+    }, [loadFeed]),
+  );
+
   const filteredPosts = useMemo(() => {
-    if (selectedCategory === 'All') return MOCK_FEED_POSTS;
-    return MOCK_FEED_POSTS.filter((p) => p.tag === selectedCategory);
-  }, [selectedCategory]);
+    if (selectedCategory === 'All') return posts;
+    return posts.filter((p) => p.tag === selectedCategory);
+  }, [posts, selectedCategory]);
+
+  useEffect(() => {
+    postOffsetsRef.current.clear();
+  }, [filteredPosts]);
+
+  useEffect(() => {
+    if (!scrollToPostId || loading) return;
+
+    let attempts = 0;
+    const tryScroll = () => {
+      const offsetY = postOffsetsRef.current.get(scrollToPostId);
+      if (offsetY != null) {
+        feedScrollRef.current?.scrollTo({ y: Math.max(0, offsetY - 12), animated: true });
+        setScrollToPostId(null);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) {
+        setTimeout(tryScroll, 80);
+      } else {
+        setScrollToPostId(null);
+      }
+    };
+
+    tryScroll();
+  }, [scrollToPostId, loading, filteredPosts]);
 
   const onShare = useCallback(() => {
     router.push('/new-post');
   }, []);
+
+  const onLike = useCallback((postId: string) => {
+    let previous: FeedPost | undefined;
+    setPosts((current) =>
+      current.map((post) => {
+        if (post.id !== postId || post.likedByMe) return post;
+        previous = post;
+        return {
+          ...post,
+          likedByMe: true,
+          likeCount: post.likeCount + 1,
+        };
+      }),
+    );
+    if (!previous) return;
+
+    void likeFeedPost(postId).catch((err) => {
+      setPosts((current) =>
+        current.map((post) => (post.id === postId ? previous! : post)),
+      );
+      Alert.alert('Like', err instanceof Error ? err.message : 'Could not like this post.');
+    });
+  }, []);
+
+  const onOpenComments = useCallback((postId: string) => {
+    setCommentsPostId(postId);
+  }, []);
+
+  const onCloseComments = useCallback(() => {
+    setCommentsPostId(null);
+  }, []);
+
+  const onCommentAdded = useCallback((postId: string) => {
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId ? { ...post, commentCount: post.commentCount + 1 } : post,
+      ),
+    );
+  }, []);
+
+  const onDeletePost = useCallback((postId: string) => {
+    void deleteFeedPost(postId)
+      .then(() => {
+        setPosts((current) => current.filter((post) => post.id !== postId));
+        if (commentsPostId === postId) {
+          setCommentsPostId(null);
+        }
+      })
+      .catch((err) => {
+        Alert.alert('Delete post', err instanceof Error ? err.message : 'Could not delete post.');
+      });
+  }, [commentsPostId]);
 
   return (
     <LinearGradient
@@ -96,23 +204,45 @@ export default function FeedScreen() {
         <Text style={styles.shareLabel}>Share</Text>
       </Pressable>
 
-      <ScrollView
-        style={styles.feedScroll}
-        contentContainerStyle={[styles.feedContent, { paddingBottom: insets.bottom + 100 }]}
-        showsVerticalScrollIndicator={false}>
-        {filteredPosts.length === 0 ? (
-          <Text style={styles.emptyText}>No posts in this category yet.</Text>
-        ) : (
-          filteredPosts.map((post) => (
-            <FeedPostCard
-              key={post.id}
-              post={post}
-              onLike={() => Alert.alert('Like', 'Coming soon.')}
-              onComment={() => Alert.alert('Comment', 'Coming soon.')}
-            />
-          ))
-        )}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={ChecklistDesign.textMuted} />
+        </View>
+      ) : (
+        <ScrollView
+          ref={feedScrollRef}
+          style={styles.feedScroll}
+          contentContainerStyle={[styles.feedContent, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}>
+          {filteredPosts.length === 0 ? (
+            <Text style={styles.emptyText}>No posts in this category yet.</Text>
+          ) : (
+            filteredPosts.map((post) => (
+              <View
+                key={post.id}
+                onLayout={(event) => {
+                  postOffsetsRef.current.set(post.id, event.nativeEvent.layout.y);
+                }}>
+                <FeedPostCard
+                  post={post}
+                  isOwnPost={currentUserId !== null && post.authorId === currentUserId}
+                  onLike={() => onLike(post.id)}
+                  onComment={() => onOpenComments(post.id)}
+                  onDelete={() => onDeletePost(post.id)}
+                />
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
+
+      <CommentsSheet
+        visible={commentsPostId !== null}
+        postId={commentsPostId ?? ''}
+        currentUserAvatarUri={avatarUri}
+        onClose={onCloseComments}
+        onCommentAdded={onCommentAdded}
+      />
     </LinearGradient>
   );
 }
@@ -206,6 +336,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: ChecklistDesign.textPrimary,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   feedScroll: {
     flex: 1,

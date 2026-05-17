@@ -18,17 +18,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { RecentActivityRow } from '@/components/home/recent-activity-row';
 import { HomeBoxIcon } from '@/components/home-box-icon';
 import { lineWeightTotalKg } from '@/constants/box-metrics';
 import { ChecklistDesign } from '@/constants/checklist-design';
 import { ACTIVE_BOX_CODE_KEY, ACTIVE_BOX_TITLE_KEY } from '@/constants/first-launch';
+import { fetchRecentChecklistActivity, type ChecklistActivity } from '@/services/checklist-activity';
 import { subscribeChecklistChanged } from '@/services/checklist-events';
 import { fetchBoxMemberDisplayRows } from '@/services/box-member-display';
-import {
-  clearActiveBoxStorage,
-  resolvePrimaryBoxForUser,
-  syncActiveBoxFromServer,
-} from '@/services/active-box';
+import { resolvePrimaryBoxForUser, syncActiveBoxFromServer } from '@/services/active-box';
 import { supabase } from '@/services/supabase';
 
 type ChecklistStatRow = {
@@ -63,6 +61,7 @@ export default function HomeScreen() {
     includedItems: 0,
     progressPercent: 0,
   });
+  const [recentActivity, setRecentActivity] = useState<ChecklistActivity[]>([]);
 
   const loadHome = useCallback(async () => {
     let userId: string | null = null;
@@ -110,6 +109,7 @@ export default function HomeScreen() {
         });
         setContributors([]);
         setMemberRole(null);
+        setRecentActivity([]);
         if (storedBoxTitle?.trim()) {
           setBoxTitle(storedBoxTitle.trim());
         }
@@ -202,6 +202,13 @@ export default function HomeScreen() {
         includedItems,
         progressPercent,
       });
+
+      try {
+        const activity = await fetchRecentChecklistActivity(boxId, userId, 5);
+        setRecentActivity(activity);
+      } catch {
+        setRecentActivity([]);
+      }
     } catch (error) {
       console.warn('Home load failed', error);
       if (userId) {
@@ -217,6 +224,7 @@ export default function HomeScreen() {
         }
       }
       setContributors([]);
+      setRecentActivity([]);
       setStats({
         totalItems: 0,
         budgetUsd: 0,
@@ -286,16 +294,6 @@ export default function HomeScreen() {
     await Clipboard.setStringAsync(code);
     Alert.alert('Copied', 'Box code copied to clipboard.');
   }, [boxCode]);
-  const onSignOut = useCallback(async () => {
-    await clearActiveBoxStorage();
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      Alert.alert('Sign out failed', error.message);
-      return;
-    }
-    router.replace('/sign-in');
-  }, []);
-
   return (
     <LinearGradient
       colors={[ChecklistDesign.gradientTop, ChecklistDesign.gradientBottom]}
@@ -304,20 +302,8 @@ export default function HomeScreen() {
       style={styles.gradient}>
       <View style={[styles.fixedHeader, { paddingTop: insets.top + 10 }]}>
         <View style={styles.topRow}>
-          <View>
-            <Text style={styles.welcomeTitle}>Welcome back, {welcomeName}!</Text>
-            <Text style={styles.welcomeSub}>Ready to pack today?</Text>
-          </View>
-          <Pressable
-            onPress={() => void onSignOut()}
-            style={styles.locationWrap}
-            accessibilityRole="button"
-            accessibilityLabel="Sign out">
-            <View style={styles.locationIcon}>
-              <MaterialIcons name="logout" size={20} color={ChecklistDesign.textPrimary} />
-            </View>
-            <Text style={styles.locationText}>Sign Out</Text>
-          </Pressable>
+          <Text style={styles.welcomeTitle}>Welcome back, {welcomeName}!</Text>
+          <Text style={styles.welcomeSub}>Ready to pack today?</Text>
         </View>
       </View>
       <ScrollView
@@ -496,7 +482,19 @@ export default function HomeScreen() {
         </View>
 
         <Text style={[styles.sectionTitle, { marginTop: 14 }]}>Recent Activity</Text>
-        <Text style={styles.emptyText}>Activity feed coming soon.</Text>
+        {loading ? (
+          <View style={styles.activityLoadingWrap}>
+            <ActivityIndicator color={ChecklistDesign.accentOrange} size="small" />
+          </View>
+        ) : recentActivity.length > 0 ? (
+          <View style={styles.activityList}>
+            {recentActivity.map((activity) => (
+              <RecentActivityRow key={activity.id} activity={activity} />
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.emptyText}>No recent checklist activity yet.</Text>
+        )}
       </ScrollView>
     </LinearGradient>
   );
@@ -525,9 +523,6 @@ const styles = StyleSheet.create({
     height: 13,
   },
   topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#A07C50',
     paddingBottom: 8,
@@ -541,26 +536,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 15,
     color: ChecklistDesign.textPrimary,
-  },
-  locationWrap: {
-    alignItems: 'center',
-    width: 82,
-  },
-  locationIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#E7D1A8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationText: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
-    color: ChecklistDesign.textPrimary,
-    lineHeight: 14,
   },
   boxPanelOuter: {
     borderRadius: 28,
@@ -783,6 +758,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#4D4A43',
+  },
+  activityList: {
+    width: '100%',
+  },
+  activityLoadingWrap: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   emptyText: {
     fontSize: 14,
