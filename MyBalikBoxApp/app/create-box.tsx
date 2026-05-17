@@ -48,7 +48,7 @@ export default function CreateBoxScreen() {
               keyboardType="decimal-pad"
             />
 
-            <Text style={styles.sectionHint}>Weight (optional)</Text>
+            <Text style={styles.sectionHint}>Capacity (optional)</Text>
             <TextInput
               value={weight}
               onChangeText={setWeight}

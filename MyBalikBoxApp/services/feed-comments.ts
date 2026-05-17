@@ -1,4 +1,5 @@
 import type { FeedPostComment } from '@/constants/feed';
+import { resolveProfileAvatarUrl } from '@/services/profile';
 import { supabase } from '@/services/supabase';
 import { formatTimeAgoShort } from '@/utils/time-ago';
 
@@ -70,7 +71,7 @@ function mapRowToComment(row: CommentRow): FeedPostComment {
     parentId: row.parent_id,
     authorName: resolveAuthorName(profile),
     authorUsername: resolveUsername(profile),
-    authorAvatarUri: profile?.avatar_url?.trim() || null,
+    authorAvatarUri: resolveProfileAvatarUrl(profile?.avatar_url),
     replyToAuthorName: row.parent_id ? resolveAuthorName(parentProfile) : null,
     replyToUsername: row.parent_id ? resolveUsername(parentProfile) : null,
     body: row.body,

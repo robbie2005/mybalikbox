@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 
 import type { FeedPost, FeedPostCategory } from '@/constants/feed';
+import { resolveProfileAvatarUrl } from '@/services/profile';
 import { formatTimeAgo } from '@/utils/time-ago';
 import { supabase } from '@/services/supabase';
 
@@ -64,7 +65,7 @@ function mapRowToFeedPost(row: FeedPostRow): FeedPost {
     id: row.id,
     authorId: row.author_id,
     authorName: resolveAuthorName(row),
-    authorAvatarUri: profile?.avatar_url?.trim() || null,
+    authorAvatarUri: resolveProfileAvatarUrl(profile?.avatar_url),
     timeAgo: formatTimeAgo(row.created_at),
     sharedWithName: 'Everyone',
     imageUri: row.image_url,
@@ -458,6 +459,23 @@ export async function likeFeedPost(postId: string): Promise<void> {
     if (error.code === '23505') return;
     throw formatServiceError('feed:like_insert', error);
   }
+}
+
+export async function unlikeFeedPost(postId: string): Promise<void> {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError) throw formatServiceError('feed:unlike_auth', authError);
+  if (!user) throw new Error('[feed:unlike] Not signed in');
+
+  const { error } = await supabase
+    .from('feed_post_likes')
+    .delete()
+    .eq('post_id', postId)
+    .eq('user_id', user.id);
+
+  if (error) throw formatServiceError('feed:unlike_delete', error);
 }
 
 export type FeedPostThumbnail = {

@@ -13,3 +13,9 @@ export function lineWeightTotalKg(row: {
     w != null && Number.isFinite(Number(w)) ? Number(w) : DEFAULT_ITEM_WEIGHT_KG_PER_UNIT;
   return perKg * qty;
 }
+
+/** Display box capacity (kg) on home widget and overview. */
+export function formatCapacityKg(kg: number | null | undefined): string {
+  if (kg == null || !Number.isFinite(kg) || kg <= 0) return '—';
+  return kg % 1 === 0 ? `${Math.round(kg)}kg` : `${Math.round(kg * 10) / 10}kg`;
+}

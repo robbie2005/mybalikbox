@@ -20,7 +20,7 @@ import { FeedPostCard } from '@/components/feed/feed-post-card';
 import { ChecklistDesign } from '@/constants/checklist-design';
 import { FEED_CATEGORIES, type FeedCategory, type FeedPost } from '@/constants/feed';
 import { consumePendingFeedScrollPostId } from '@/services/feed-navigation';
-import { deleteFeedPost, fetchFeedPosts, likeFeedPost } from '@/services/feed-posts';
+import { deleteFeedPost, fetchFeedPosts, likeFeedPost, unlikeFeedPost } from '@/services/feed-posts';
 import { fetchCurrentProfile } from '@/services/profile';
 
 export default function FeedScreen() {
@@ -106,8 +106,15 @@ export default function FeedScreen() {
     let previous: FeedPost | undefined;
     setPosts((current) =>
       current.map((post) => {
-        if (post.id !== postId || post.likedByMe) return post;
+        if (post.id !== postId) return post;
         previous = post;
+        if (post.likedByMe) {
+          return {
+            ...post,
+            likedByMe: false,
+            likeCount: Math.max(0, post.likeCount - 1),
+          };
+        }
         return {
           ...post,
           likedByMe: true,
@@ -117,11 +124,16 @@ export default function FeedScreen() {
     );
     if (!previous) return;
 
-    void likeFeedPost(postId).catch((err) => {
+    const wasLiked = previous.likedByMe;
+    const persist = wasLiked ? unlikeFeedPost(postId) : likeFeedPost(postId);
+    void persist.catch((err) => {
       setPosts((current) =>
         current.map((post) => (post.id === postId ? previous! : post)),
       );
-      Alert.alert('Like', err instanceof Error ? err.message : 'Could not like this post.');
+      Alert.alert(
+        wasLiked ? 'Unlike' : 'Like',
+        err instanceof Error ? err.message : wasLiked ? 'Could not unlike this post.' : 'Could not like this post.',
+      );
     });
   }, []);
 

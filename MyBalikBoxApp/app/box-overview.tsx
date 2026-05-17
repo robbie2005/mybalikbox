@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChecklistDesign } from '@/constants/checklist-design';
-import { DEFAULT_ITEM_WEIGHT_KG_PER_UNIT, lineWeightTotalKg } from '@/constants/box-metrics';
+import { formatCapacityKg } from '@/constants/box-metrics';
 import { fetchBoxMemberDisplayRows } from '@/services/box-member-display';
 import { resolveActiveBoxId } from '@/services/checklist-items';
 import { finalizeBox } from '@/services/finalize-box';
@@ -36,7 +36,6 @@ type ItemRow = {
   quantity: number | null;
   status: 'planned' | 'purchased' | 'packed' | 'removed';
   reference_price: number | null;
-  weight_kg?: number | null;
 };
 
 function initialFromDisplayName(displayName: string): string {
@@ -64,8 +63,6 @@ export default function BoxOverviewScreen() {
   const [weightCapKg, setWeightCapKg] = useState<number | null>(null);
 
   const [spentUsd, setSpentUsd] = useState(0);
-  const [weightUsedKg, setWeightUsedKg] = useState(0);
-  const [hasLineWeights, setHasLineWeights] = useState(false);
   const [totalQty, setTotalQty] = useState(0);
   const [includedQty, setIncludedQty] = useState(0);
 
@@ -84,18 +81,8 @@ export default function BoxOverviewScreen() {
   const budgetRemainingUsd =
     budgetCapUsd != null && Number.isFinite(budgetCapUsd) ? Math.max(0, budgetCapUsd - spentUsd) : null;
 
-  const weightRemainingKg =
-    weightCapKg != null && Number.isFinite(weightCapKg)
-      ? Math.max(0, weightCapKg - weightUsedKg)
-      : null;
-
   const budgetRemainingRatio =
     budgetCapUsd != null && budgetCapUsd > 0 ? (budgetRemainingUsd ?? 0) / budgetCapUsd : 1;
-
-  const weightRemainingRatio =
-    weightCapKg != null && weightCapKg > 0
-      ? (weightRemainingKg ?? weightCapKg) / weightCapKg
-      : 1;
 
   const loadOverview = useCallback(async () => {
     setLoadError(null);
@@ -111,8 +98,6 @@ export default function BoxOverviewScreen() {
         setContributors([]);
         setItems([]);
         setSpentUsd(0);
-        setWeightUsedKg(0);
-        setHasLineWeights(false);
         setTotalQty(0);
         setIncludedQty(0);
         return;
@@ -161,23 +146,16 @@ export default function BoxOverviewScreen() {
       let tQty = 0;
       let iQty = 0;
       let spent = 0;
-      let wUsed = 0;
-      let explicitWeightsOnRows = false;
       for (const row of rows) {
         const q = Number(row.quantity ?? 1);
         if (!Number.isFinite(q) || q < 0) continue;
         tQty += q;
         if (row.status === 'purchased' || row.status === 'packed') iQty += q;
         spent += Math.max(0, Number(row.reference_price ?? 0)) * q;
-        const w = row.weight_kg;
-        if (w != null && Number.isFinite(Number(w))) explicitWeightsOnRows = true;
-        wUsed += lineWeightTotalKg({ weight_kg: row.weight_kg, quantity: row.quantity });
       }
       setTotalQty(tQty);
       setIncludedQty(iQty);
       setSpentUsd(spent);
-      setWeightUsedKg(wUsed);
-      setHasLineWeights(explicitWeightsOnRows);
 
       try {
         const memberRows = await fetchBoxMemberDisplayRows(boxId, userId);
@@ -246,26 +224,12 @@ export default function BoxOverviewScreen() {
         ? 'estimated from checklist prices'
         : 'add prices on items for an estimate';
 
-  const weightPrimaryLabel =
-    weightCapKg != null && weightCapKg > 0
-      ? `${Math.round(weightRemainingKg ?? weightCapKg)}kg`
-      : `${Math.round(weightUsedKg * 10) / 10}kg`;
+  const capacityPrimaryLabel = formatCapacityKg(weightCapKg);
 
-  const weightCaption =
+  const capacityCaption =
     weightCapKg != null && weightCapKg > 0
-      ? `remaining of ${Math.round(weightCapKg)}kg`
-      : totalQty > 0
-        ? hasLineWeights
-          ? 'total checklist weight'
-          : `estimated (${DEFAULT_ITEM_WEIGHT_KG_PER_UNIT} kg/unit default)`
-        : 'set a weight cap on the box to track allowance';
-
-  const legendWeightUsed =
-    weightCapKg != null && weightCapKg > 0
-      ? `${Math.round(weightUsedKg * 10) / 10}kg used${hasLineWeights ? '' : ' (est.)'}`
-      : totalQty > 0
-        ? `${Math.round(weightUsedKg * 10) / 10}kg total${hasLineWeights ? '' : ' (est.)'}`
-        : '';
+      ? 'capacity for this box'
+      : 'set capacity when creating the box';
 
   let body: ReactNode;
   if (loading) {
@@ -332,20 +296,9 @@ export default function BoxOverviewScreen() {
           </View>
 
           <View style={[styles.card, styles.halfCard]}>
-            <Text style={styles.smallCardTitle}>Weight</Text>
-            <Text style={styles.orangeValue}>{weightPrimaryLabel}</Text>
-            {weightCapKg != null && weightCapKg > 0 ? (
-              <View style={styles.miniTrack}>
-                <View style={[styles.miniFill, { width: `${Math.min(1, Math.max(0, weightRemainingRatio)) * 100}%` }]} />
-              </View>
-            ) : null}
-            <Text style={styles.smallCaption}>{weightCaption}</Text>
-            {legendWeightUsed ? (
-              <View style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: ChecklistDesign.accentOrange }]} />
-                <Text style={styles.legendText}>{legendWeightUsed}</Text>
-              </View>
-            ) : null}
+            <Text style={styles.smallCardTitle}>Capacity</Text>
+            <Text style={styles.orangeValue}>{capacityPrimaryLabel}</Text>
+            <Text style={styles.smallCaption}>{capacityCaption}</Text>
           </View>
         </View>
 

@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start",
     "seed:recommended:rainforest": "node --env-file=.env.seed scripts/rainforest-seed-recommended.mjs",
+    "seed:feed:demo": "node --env-file=.env.seed scripts/seed-feed-demo.mjs",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

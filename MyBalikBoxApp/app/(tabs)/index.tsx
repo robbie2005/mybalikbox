@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecentActivityRow } from '@/components/home/recent-activity-row';
 import { HomeBoxIcon } from '@/components/home-box-icon';
-import { lineWeightTotalKg } from '@/constants/box-metrics';
+import { formatCapacityKg } from '@/constants/box-metrics';
 import { ChecklistDesign } from '@/constants/checklist-design';
 import { ACTIVE_BOX_CODE_KEY, ACTIVE_BOX_TITLE_KEY } from '@/constants/first-launch';
 import { fetchRecentChecklistActivity, type ChecklistActivity } from '@/services/checklist-activity';
@@ -33,7 +33,6 @@ type ChecklistStatRow = {
   quantity: number | null;
   reference_price: number | null;
   status: 'planned' | 'purchased' | 'packed' | 'removed';
-  weight_kg?: number | null;
 };
 
 type Contributor = {
@@ -56,7 +55,7 @@ export default function HomeScreen() {
   const [stats, setStats] = useState({
     totalItems: 0,
     budgetUsd: 0,
-    weightKg: 0,
+    weightCapKg: null as number | null,
     pendingItems: 0,
     includedItems: 0,
     progressPercent: 0,
@@ -102,7 +101,7 @@ export default function HomeScreen() {
         setStats({
           totalItems: 0,
           budgetUsd: 0,
-          weightKg: 0,
+          weightCapKg: null as number | null,
           pendingItems: 0,
           includedItems: 0,
           progressPercent: 0,
@@ -142,14 +141,23 @@ export default function HomeScreen() {
         setMemberRole(null);
       }
 
-      const { data: items, error: itemsErr } = await supabase
-        .from('box_checklist_items')
-        .select('quantity, reference_price, status')
-        .eq('box_id', boxId)
-        .neq('status', 'removed');
+      const [itemsResult, boxResult] = await Promise.all([
+        supabase
+          .from('box_checklist_items')
+          .select('quantity, reference_price, status')
+          .eq('box_id', boxId)
+          .neq('status', 'removed'),
+        supabase.from('boxes').select('weight_cap_kg').eq('id', boxId).maybeSingle(),
+      ]);
 
+      const { data: items, error: itemsErr } = itemsResult;
       if (itemsErr) throw itemsErr;
 
+      const boxRow = boxResult.data;
+      const weightCapKg =
+        typeof boxRow?.weight_cap_kg === 'number' && Number.isFinite(boxRow.weight_cap_kg)
+          ? boxRow.weight_cap_kg
+          : null;
       const rows = (items ?? []) as ChecklistStatRow[];
       const totalItems = rows.reduce((sum, row) => sum + Number(row.quantity ?? 1), 0);
       const includedItems = rows
@@ -162,15 +170,6 @@ export default function HomeScreen() {
         (sum, row) => sum + Math.max(0, Number(row.reference_price ?? 0)) * Number(row.quantity ?? 1),
         0,
       );
-
-      let weightFromItemsKg = 0;
-      for (const row of rows) {
-        weightFromItemsKg += lineWeightTotalKg({
-          weight_kg: row.weight_kg,
-          quantity: row.quantity,
-        });
-      }
-      const weightDisplayKg = rows.length ? weightFromItemsKg : 0;
 
       const progressPercent = totalItems > 0 ? Math.round((includedItems / totalItems) * 100) : 0;
 
@@ -197,7 +196,7 @@ export default function HomeScreen() {
       setStats({
         totalItems,
         budgetUsd: budgetSpentUsd,
-        weightKg: weightDisplayKg,
+        weightCapKg,
         pendingItems,
         includedItems,
         progressPercent,
@@ -228,7 +227,7 @@ export default function HomeScreen() {
       setStats({
         totalItems: 0,
         budgetUsd: 0,
-        weightKg: 0,
+        weightCapKg: null as number | null,
         pendingItems: 0,
         includedItems: 0,
         progressPercent: 0,
@@ -383,10 +382,8 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statCell}>
-                    <Text style={styles.statLabel}>Weight</Text>
-                    <Text style={styles.statValue}>
-                      {stats.weightKg % 1 === 0 ? Math.round(stats.weightKg) : Math.round(stats.weightKg * 10) / 10}kg
-                    </Text>
+                    <Text style={styles.statLabel}>Capacity</Text>
+                    <Text style={styles.statValue}>{formatCapacityKg(stats.weightCapKg)}</Text>
                   </View>
                 </View>
                 <View style={styles.actionRow}>

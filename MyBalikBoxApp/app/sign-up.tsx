@@ -3,7 +3,6 @@ import { ensureUserBootstrap } from '@/services/auth-bootstrap';
 import { isMissingUsernameColumnError } from '@/services/profile-columns';
 import { supabase } from '@/services/supabase';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,10 +17,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-WebBrowser.maybeCompleteAuthSession();
 
 /** Match sign-in screen box asset size (159×140 viewBox). */
 const LOGO_W = 159;
@@ -145,51 +141,6 @@ export default function SignUpScreen() {
       passwordsMatch
     );
   }, [confirmPassword, email, password, username, usernameStatus]);
-
-  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
-    setLoading(true);
-    const redirectTo = Linking.createURL('auth/callback', { scheme: 'mybalikboxapp' });
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo, skipBrowserRedirect: true },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error('Unable to start OAuth flow.');
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (result.type !== 'success' || !result.url) return;
-
-      const callbackUrl = new URL(result.url);
-      const code = callbackUrl.searchParams.get('code');
-      const oauthError = callbackUrl.searchParams.get('error_description');
-      if (oauthError) throw new Error(oauthError);
-      if (!code) throw new Error('No OAuth code returned.');
-
-      const { data: exchanged, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) throw exchangeError;
-      if (!exchanged?.user) throw new Error('OAuth session was not created.');
-
-      const oauthUsername =
-        (typeof exchanged.user.user_metadata?.display_name === 'string' &&
-          exchanged.user.user_metadata.display_name) ||
-        (typeof exchanged.user.user_metadata?.name === 'string' && exchanged.user.user_metadata.name) ||
-        exchanged.user.email?.split('@')[0] ||
-        null;
-      await ensureUserBootstrap({
-        userId: exchanged.user.id,
-        username: oauthUsername,
-        displayName: oauthUsername,
-      });
-      router.replace('/(tabs)');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Social sign-in failed. Please try again.';
-      Alert.alert('OAuth error', message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSignUp = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -380,29 +331,6 @@ export default function SignUpScreen() {
               {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.signUpBtnText}>Sign Up</Text>}
             </Pressable>
 
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or sign up with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <View style={styles.socialRow}>
-              <Pressable
-                style={styles.socialBtn}
-                disabled={loading}
-                onPress={() => void handleOAuthSignIn('google')}
-                accessibilityRole="button">
-                <Text style={styles.socialLetter}>G</Text>
-              </Pressable>
-              <Pressable
-                style={styles.socialBtn}
-                disabled={loading}
-                onPress={() => void handleOAuthSignIn('facebook')}
-                accessibilityRole="button">
-                <Text style={styles.socialLetter}>f</Text>
-              </Pressable>
-            </View>
-
             <View style={styles.footerRow}>
               <Text style={styles.footerText}>Already have an account? </Text>
               <Pressable onPress={() => router.replace('/sign-in')} accessibilityRole="link">
@@ -484,28 +412,6 @@ const styles = StyleSheet.create({
   },
   signUpBtnDisabled: { opacity: 0.5 },
   signUpBtnText: { color: '#FFF', fontSize: 17, fontWeight: '700' },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 18,
-    marginBottom: 12,
-  },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#C9B8A4' },
-  dividerText: { fontSize: 12, color: '#6B5B4A', fontWeight: '600' },
-  socialRow: { flexDirection: 'row', gap: 14, justifyContent: 'center' },
-  socialBtn: {
-    flex: 1,
-    maxWidth: 160,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E4DED4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  socialLetter: { fontSize: 22, fontWeight: '700', color: '#444' },
   footerRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -212,6 +212,41 @@ export async function pickProfileImage(): Promise<string | null> {
   return result.assets[0].uri;
 }
 
+const AVATAR_PUBLIC_MARKERS = ['/object/public/avatars/', '/object/sign/avatars/'];
+
+/** Path inside the avatars bucket from a public/signed URL or raw path. */
+export function resolveAvatarStoragePath(avatarUrlOrPath: string): string | null {
+  const trimmed = avatarUrlOrPath.trim();
+  if (!trimmed) return null;
+
+  for (const marker of AVATAR_PUBLIC_MARKERS) {
+    const idx = trimmed.indexOf(marker);
+    if (idx === -1) continue;
+    const raw = trimmed.slice(idx + marker.length).split('?')[0] ?? '';
+    return decodeURIComponent(raw);
+  }
+
+  if (!trimmed.includes('://')) {
+    return trimmed;
+  }
+
+  return null;
+}
+
+/** Display URL for profile avatars (public bucket; also accepts storage paths). */
+export function resolveProfileAvatarUrl(avatarUrlOrPath: string | null | undefined): string | null {
+  const trimmed = avatarUrlOrPath?.trim();
+  if (!trimmed) return null;
+
+  const path = resolveAvatarStoragePath(trimmed);
+  if (!path) {
+    return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : null;
+  }
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return data.publicUrl?.trim() || null;
+}
+
 export async function uploadProfileAvatar(localUri: string, userId: string): Promise<string> {
   const response = await fetch(localUri);
   const arrayBuffer = await response.arrayBuffer();

@@ -37,6 +37,12 @@ yarn-error.*
 .env
 .env.seed
 
+# feed demo seed images (add locally; see scripts/data/feed-seed/README.md)
+scripts/data/feed-seed/images/*
+!scripts/data/feed-seed/images/.gitkeep
+scripts/data/feed-seed/avatars/*
+!scripts/data/feed-seed/avatars/.gitkeep
+
 # typescript
 *.tsbuildinfo
 

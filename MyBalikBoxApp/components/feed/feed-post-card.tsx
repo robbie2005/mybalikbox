@@ -94,11 +94,9 @@ export function FeedPostCard({ post, isOwnPost, onLike, onComment, onDelete }: F
         <View style={styles.actionGroup}>
           <Pressable
             onPress={onLike}
-            disabled={post.likedByMe}
             style={styles.actionButton}
             accessibilityRole="button"
-            accessibilityLabel={post.likedByMe ? 'Liked' : 'Like post'}
-            accessibilityState={{ disabled: post.likedByMe }}>
+            accessibilityLabel={post.likedByMe ? 'Unlike post' : 'Like post'}>
             <MaterialIcons
               name={post.likedByMe ? 'favorite' : 'favorite-border'}
               size={26}

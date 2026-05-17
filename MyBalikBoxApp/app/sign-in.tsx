@@ -1,9 +1,9 @@
 import { BalikBoxLogo } from '@/components/balikbox-logo';
 import { syncActiveBoxFromServer } from '@/services/active-box';
+import { resolveEmailForSignIn } from '@/services/auth-sign-in';
 import { ensureUserBootstrap } from '@/services/auth-bootstrap';
 import { supabase } from '@/services/supabase';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -18,10 +18,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const LOGO_H = 140;
 /** How much of the logo sits under the panel (between LOGO_H/4 and LOGO_H/2 after fine-tune). */
@@ -50,20 +47,20 @@ export default function SignInScreen() {
     })();
   }, []);
 
-  const resolveEmailForSignIn = (value: string): string | null => {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if (trimmed.includes('@')) return trimmed.toLowerCase();
-    Alert.alert('Use your email', 'Sign in with your email address for now. Username-only sign-in can be added later.');
-    return null;
-  };
-
   const handleEmailSignIn = async () => {
-    const email = resolveEmailForSignIn(identifier);
-    if (!email || !password) return;
+    if (!identifier.trim() || !password) {
+      Alert.alert('Missing information', 'Enter your email or username and password.');
+      return;
+    }
 
     setLoading(true);
     try {
+      const email = await resolveEmailForSignIn(identifier);
+      if (!email) {
+        Alert.alert('Account not found', 'No account matches that email or username.');
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error('Unable to sign in.');
@@ -82,50 +79,6 @@ export default function SignInScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign-in failed. Please try again.';
       Alert.alert('Sign-in error', message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
-    setLoading(true);
-    const redirectTo = Linking.createURL('auth/callback', { scheme: 'mybalikboxapp' });
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo, skipBrowserRedirect: true },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error('Unable to start OAuth flow.');
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (result.type !== 'success' || !result.url) return;
-
-      const callbackUrl = new URL(result.url);
-      const code = callbackUrl.searchParams.get('code');
-      const oauthError = callbackUrl.searchParams.get('error_description');
-      if (oauthError) throw new Error(oauthError);
-      if (!code) throw new Error('No OAuth code returned.');
-
-      const { data: exchanged, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) throw exchangeError;
-      if (!exchanged?.user) throw new Error('OAuth session was not created.');
-
-      const oauthUsername =
-        (typeof exchanged.user.user_metadata?.display_name === 'string' &&
-          exchanged.user.user_metadata.display_name) ||
-        exchanged.user.email?.split('@')[0] ||
-        null;
-      await ensureUserBootstrap({
-        userId: exchanged.user.id,
-        username: oauthUsername,
-        displayName: oauthUsername,
-      });
-      router.replace('/(tabs)');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Social sign-in failed. Please try again.';
-      Alert.alert('OAuth error', message);
     } finally {
       setLoading(false);
     }
@@ -203,29 +156,6 @@ export default function SignInScreen() {
               accessibilityRole="button">
               {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.signInBtnText}>Sign In</Text>}
             </Pressable>
-
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <View style={styles.socialRow}>
-              <Pressable
-                style={styles.socialBtn}
-                disabled={loading}
-                onPress={() => void handleOAuthSignIn('google')}
-                accessibilityRole="button">
-                <Text style={styles.socialLetter}>G</Text>
-              </Pressable>
-              <Pressable
-                style={styles.socialBtn}
-                disabled={loading}
-                onPress={() => void handleOAuthSignIn('facebook')}
-                accessibilityRole="button">
-                <Text style={styles.socialLetter}>f</Text>
-              </Pressable>
-            </View>
 
             <View style={styles.footerRow}>
               <Text style={styles.footerText}>{"Don't have an account? "}</Text>
@@ -322,35 +252,13 @@ const styles = StyleSheet.create({
   },
   signInBtnDisabled: { opacity: 0.55 },
   signInBtnText: { color: '#FFF', fontSize: 17, fontWeight: '700' },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 22,
-    marginBottom: 16,
-  },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#C9B8A4' },
-  dividerText: { fontSize: 12, color: '#6B5B4A', fontWeight: '600' },
-  socialRow: { flexDirection: 'row', gap: 14, justifyContent: 'center' },
-  socialBtn: {
-    flex: 1,
-    maxWidth: 160,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E4DED4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  socialLetter: { fontSize: 22, fontWeight: '700', color: '#444' },
   footerRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 'auto',
-    paddingTop: 20,
+    paddingTop: 28,
   },
   footerText: { fontSize: 15, color: '#3A3328' },
   footerLink: { fontSize: 15, fontWeight: '700', color: '#C98A35' },

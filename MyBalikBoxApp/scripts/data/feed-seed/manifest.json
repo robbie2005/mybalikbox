@@ -1,0 +1,67 @@
+{
+  "demoEmailDomain": "balikbox.demo",
+  "users": [
+    {
+      "key": "maria",
+      "displayName": "Maria Santos",
+      "username": "maria_santos",
+      "location": "Los Angeles, CA",
+      "bio": "Packing our annual balikbayan box for the family in Bulacan. Every kilo counts!",
+      "avatarUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face"
+    },
+    {
+      "key": "carlos",
+      "displayName": "Carlos Reyes",
+      "username": "carlos_reyes",
+      "location": "Toronto, ON",
+      "bio": "Contributor mode: adding snacks, shoes, and whatever Mom says we still have room for.",
+      "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face"
+    },
+    {
+      "key": "lola",
+      "displayName": "Lola Remedios",
+      "username": "lola_remedios",
+      "location": "Quezon City, PH",
+      "bio": "Waiting by the door for the box. Salamat sa lahat, anak.",
+      "avatarUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&h=400&fit=crop&crop=face"
+    },
+    {
+      "key": "jen",
+      "displayName": "Jen Santos",
+      "username": "jen_santos",
+      "location": "Irvine, CA",
+      "bio": "Documenting packing night — snacks, pasalubong, and one very full box.",
+      "avatarUrl": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&crop=face"
+    }
+  ],
+  "posts": [
+    {
+      "authorKey": "maria",
+      "image": "labeled-box.jpg",
+      "caption": "First box of the year is underway — SPAM, salmon, vitamins, and Lola’s favorite oatmeal all in. Labeling tonight before the forwarder pickup. 📦🇵🇭",
+      "category": "Family",
+      "hoursAgo": 8
+    },
+    {
+      "authorKey": "carlos",
+      "image": "snacks-aisle.jpg",
+      "caption": "Haul day from Canada — Nutella, Spam, Coffee-mate, and everyone’s snack requests checked off the list. Now to fit it all in one box 😅",
+      "category": "Family",
+      "hoursAgo": 22
+    },
+    {
+      "authorKey": "jen",
+      "image": "sneakers-kids.jpg",
+      "caption": "Kids’ corner of the box: Judy Moody books, domino set, and clothes for the cousins. They’re going to fight over who opens this first.",
+      "category": "Culture",
+      "hoursAgo": 36
+    },
+    {
+      "authorKey": "maria",
+      "image": "weighing-scale.jpg",
+      "caption": "Almost full — LEGO, Quaker oats, Nesquik, and Dove are in. Flashlight on the side for Lolo’s garage. Sealing this weekend!",
+      "category": "Gratitude",
+      "hoursAgo": 52
+    }
+  ]
+}
