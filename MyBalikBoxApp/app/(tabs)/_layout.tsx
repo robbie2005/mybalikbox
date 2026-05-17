@@ -10,7 +10,9 @@ export const unstable_settings = {
 
 export default function TabLayout() {
   return (
-    <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false, lazy: false }}>
       <Tabs.Screen
         name="index"
         options={{

@@ -15,9 +15,17 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+        <Stack.Screen name="sign-up" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="create-box" options={{ headerShown: false }} />
+        <Stack.Screen name="join-box" options={{ headerShown: false }} />
+        <Stack.Screen name="box-created" options={{ headerShown: false }} />
+        <Stack.Screen name="box-joined" options={{ headerShown: false }} />
         <Stack.Screen name="box-overview" options={{ headerShown: false, title: 'Box Overview' }} />
+        <Stack.Screen name="box-finalized" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="about-application" options={{ headerShown: false }} />
         <Stack.Screen name="help-faq" options={{ headerShown: false }} />

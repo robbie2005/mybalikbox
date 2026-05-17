@@ -1,3 +1,7 @@
+import type { PostgrestError } from '@supabase/supabase-js';
+
+import { getStoredActiveBoxId } from '@/services/active-box';
+import { notifyChecklistChanged } from '@/services/checklist-events';
 import type { RecommendedCatalogItem } from '@/services/recommended-items-catalog';
 import { supabase } from '@/services/supabase';
 
@@ -10,9 +14,25 @@ function getPinnedBoxId(): string | null {
   return id && id.length > 0 ? id : null;
 }
 
+function mapPg(error: PostgrestError): Error {
+  return new Error([error.message, error.details, error.hint].filter(Boolean).join('\n'));
+}
+
 async function ensureProfileRow(userId: string): Promise<void> {
   const { error } = await supabase.from('profiles').upsert({ id: userId }, { onConflict: 'id' });
-  if (error) throw error;
+  if (error) throw mapPg(error);
+}
+
+async function membershipBoxId(userId: string, boxId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('box_members')
+    .select('box_id')
+    .eq('user_id', userId)
+    .eq('box_id', boxId)
+    .in('role', ['builder', 'contributor'])
+    .maybeSingle();
+  if (error) throw mapPg(error);
+  return !!data?.box_id;
 }
 
 export async function resolveActiveBoxId(): Promise<string | null> {
@@ -24,16 +44,34 @@ export async function resolveActiveBoxId(): Promise<string | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const storedId = await getStoredActiveBoxId();
+  if (storedId && (await membershipBoxId(user.id, storedId))) {
+    return storedId;
+  }
+
+  const { data: membership, error: memberError } = await supabase
     .from('box_members')
     .select('box_id')
     .eq('user_id', user.id)
     .in('role', ['builder', 'contributor'])
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (error) throw error;
-  return data?.box_id ?? null;
+  if (memberError) throw mapPg(memberError);
+  if (membership?.box_id) return membership.box_id;
+
+  const { data: owned, error: ownedError } = await supabase
+    .from('boxes')
+    .select('id')
+    .eq('owner_id', user.id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (ownedError) throw mapPg(ownedError);
+  return owned?.id ?? null;
 }
 
 export type InsertChecklistSource = 'manual' | 'recommendation';
@@ -68,13 +106,14 @@ export async function insertChecklistItem(params: {
   };
 
   const { data, error } = await supabase.from('box_checklist_items').insert(row).select('id').single();
-  if (error) throw error;
+  if (error) throw mapPg(error);
   if (!data?.id) throw new Error('Insert did not return an id.');
+  notifyChecklistChanged();
   return data.id;
 }
 
-export async function addRecommendedItemToBox(item: RecommendedCatalogItem, boxId: string): Promise<void> {
-  await insertChecklistItem({
+export async function addRecommendedItemToBox(item: RecommendedCatalogItem, boxId: string): Promise<string> {
+  return insertChecklistItem({
     boxId,
     name: item.name,
     source: 'recommendation',
@@ -86,13 +125,13 @@ export async function addRecommendedItemToBox(item: RecommendedCatalogItem, boxI
 
 export async function addCustomItemToBox(
   boxId: string,
-  params: { name: string; referencePriceUsd: number | null; quantity: number },
+  params: { name: string; referencePriceUsd: number | null; quantity: number; category?: string | null },
 ): Promise<string> {
   return insertChecklistItem({
     boxId,
     name: params.name,
     source: 'manual',
-    category: 'Personal Items',
+    category: params.category?.trim() ? params.category.trim() : null,
     referencePrice: params.referencePriceUsd,
     quantity: params.quantity,
   });
@@ -100,5 +139,26 @@ export async function addCustomItemToBox(
 
 export async function deleteChecklistItemById(id: string): Promise<void> {
   const { error } = await supabase.from('box_checklist_items').delete().eq('id', id);
-  if (error) throw error;
+  if (error) throw mapPg(error);
+  notifyChecklistChanged();
+}
+
+/** Accept a pending request → included (purchased). */
+export async function acceptChecklistItem(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('box_checklist_items')
+    .update({ status: 'purchased' })
+    .eq('id', id);
+  if (error) throw mapPg(error);
+  notifyChecklistChanged();
+}
+
+/** Decline a pending request → removed from active checklist. */
+export async function declineChecklistItem(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('box_checklist_items')
+    .update({ status: 'removed' })
+    .eq('id', id);
+  if (error) throw mapPg(error);
+  notifyChecklistChanged();
 }

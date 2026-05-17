@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -15,9 +16,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PendingRequestCard } from '@/components/checklist/pending-request-card';
 import { ChecklistDesign } from '@/constants/checklist-design';
-import { resolveActiveBoxId } from '@/services/checklist-items';
+import { subscribeChecklistChanged } from '@/services/checklist-events';
+import {
+  acceptChecklistItem,
+  declineChecklistItem,
+  resolveActiveBoxId,
+} from '@/services/checklist-items';
 import { supabase } from '@/services/supabase';
+import { groupRowsByCategory } from '@/utils/checklist-categories';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -28,49 +36,29 @@ type ChecklistRow = {
   name: string;
   category: string | null;
   status: 'planned' | 'purchased' | 'packed' | 'removed';
+  quantity: number | null;
+  added_by: string | null;
+  created_at: string | null;
 };
 
 const FAMILY_SUBTITLE = 'Garcia Family Balikbayan Box Checklist';
 
-const PRIORITY_CATEGORIES = [
-  'Clothing, Shoes & Jewelry',
-  'Computers & Accessories',
-  'Health & Household',
-  'Home & Kitchen',
-];
-
 const INCLUDED_STATUSES: ChecklistRow['status'][] = ['purchased', 'packed'];
 const PENDING_STATUSES: ChecklistRow['status'][] = ['planned'];
 
-function orderCategories(categories: string[]): string[] {
-  const seen = new Set(categories);
-  const ordered = PRIORITY_CATEGORIES.filter((c) => seen.has(c));
-  const rest = categories.filter((c) => !PRIORITY_CATEGORIES.includes(c)).sort();
-  return [...ordered, ...rest];
-}
-
-function groupByCategory(rows: ChecklistRow[]): Array<{ category: string; items: ChecklistRow[] }> {
-  const map = new Map<string, ChecklistRow[]>();
-  for (const row of rows) {
-    const category = row.category?.trim() || 'Uncategorized';
-    const list = map.get(category) ?? [];
-    list.push(row);
-    map.set(category, list);
-  }
-  return orderCategories([...map.keys()]).map((category) => ({
-    category,
-    items: map.get(category) ?? [],
-  }));
-}
+const CATEGORY_INDENT = 14;
+const ITEM_INDENT = 28;
 
 export default function SharedChecklistScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [rows, setRows] = useState<ChecklistRow[]>([]);
+  const [displayNameByUserId, setDisplayNameByUserId] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [actionItemId, setActionItemId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState({
     included: true,
-    pending: false,
+    pending: true,
   });
   const [expandedCategory, setExpandedCategory] = useState<Record<string, boolean>>({});
 
@@ -80,18 +68,41 @@ export default function SharedChecklistScreen() {
       const boxId = await resolveActiveBoxId();
       if (!boxId) {
         setRows([]);
+        setDisplayNameByUserId({});
         return;
       }
       const { data, error } = await supabase
         .from('box_checklist_items')
-        .select('id, name, category, status')
+        .select('id, name, category, status, quantity, added_by, created_at')
         .eq('box_id', boxId)
         .neq('status', 'removed');
       if (error) throw error;
-      setRows((data ?? []) as ChecklistRow[]);
+
+      const list = (data ?? []) as ChecklistRow[];
+      setRows(list);
+
+      const userIds = [...new Set(list.map((r) => r.added_by).filter((id): id is string => !!id))];
+      if (userIds.length) {
+        const { data: profiles, error: profilesErr } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .in('id', userIds);
+        if (!profilesErr && profiles) {
+          const map: Record<string, string> = {};
+          for (const p of profiles) {
+            const id = String((p as { id: string }).id);
+            const dn = (p as { display_name: string | null }).display_name?.trim();
+            if (dn) map[id] = dn;
+          }
+          setDisplayNameByUserId(map);
+        }
+      } else {
+        setDisplayNameByUserId({});
+      }
     } catch (e) {
       console.warn('Failed to load checklist', e);
       setRows([]);
+      setDisplayNameByUserId({});
     } finally {
       setLoading(false);
     }
@@ -99,6 +110,12 @@ export default function SharedChecklistScreen() {
 
   useEffect(() => {
     void loadChecklist();
+  }, [loadChecklist]);
+
+  useEffect(() => {
+    return subscribeChecklistChanged(() => {
+      void loadChecklist();
+    });
   }, [loadChecklist]);
 
   const includedItems = useMemo(
@@ -110,8 +127,8 @@ export default function SharedChecklistScreen() {
     [rows],
   );
 
-  const includedByCategory = useMemo(() => groupByCategory(includedItems), [includedItems]);
-  const pendingByCategory = useMemo(() => groupByCategory(pendingItems), [pendingItems]);
+  const includedByCategory = useMemo(() => groupRowsByCategory(includedItems), [includedItems]);
+  const pendingByCategory = useMemo(() => groupRowsByCategory(pendingItems), [pendingItems]);
 
   const stats = useMemo(
     () => ({
@@ -120,6 +137,14 @@ export default function SharedChecklistScreen() {
       pending: pendingItems.length,
     }),
     [rows.length, includedItems.length, pendingItems.length],
+  );
+
+  const contributorName = useCallback(
+    (userId: string | null) => {
+      if (!userId) return 'Someone';
+      return displayNameByUserId[userId] ?? 'Member';
+    },
+    [displayNameByUserId],
   );
 
   const toggleSection = useCallback((section: 'included' | 'pending') => {
@@ -131,6 +156,25 @@ export default function SharedChecklistScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedCategory((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
+
+  const runItemAction = useCallback(
+    async (itemId: string, action: 'accept' | 'decline') => {
+      setActionItemId(itemId);
+      try {
+        if (action === 'accept') {
+          await acceptChecklistItem(itemId);
+        } else {
+          await declineChecklistItem(itemId);
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Something went wrong.';
+        Alert.alert(action === 'accept' ? 'Could not accept' : 'Could not decline', message);
+      } finally {
+        setActionItemId(null);
+      }
+    },
+    [],
+  );
 
   const onProceed = useCallback(() => {
     router.push('/box-overview');
@@ -199,15 +243,15 @@ export default function SharedChecklistScreen() {
             {expandedSections.included
               ? includedByCategory.map(({ category, items }) => {
                   const key = `included:${category}`;
-                  const isOpen = expandedCategory[key];
+                  const isOpen = expandedCategory[key] ?? true;
                   return (
-                    <View key={key} style={styles.categoryCard}>
+                    <View key={key} style={[styles.categoryCard, styles.categoryIndent]}>
                       <Pressable
                         onPress={() => toggleCategory(key)}
                         style={styles.categoryHeader}
                         accessibilityRole="button"
                         accessibilityState={{ expanded: isOpen }}>
-                        <Text style={styles.categoryTitle}>
+                        <Text style={styles.categoryTitle} numberOfLines={1}>
                           {category} ({items.length})
                         </Text>
                         <MaterialIcons
@@ -218,15 +262,12 @@ export default function SharedChecklistScreen() {
                         />
                       </Pressable>
                       {isOpen ? (
-                        <View style={styles.categoryBody}>
-                          {items.slice(0, 5).map((item) => (
-                            <Text key={item.id} style={styles.categoryItem}>
+                        <View style={[styles.categoryBody, styles.itemIndent]}>
+                          {items.map((item) => (
+                            <Text key={item.id} style={styles.includedItemLine} numberOfLines={1} ellipsizeMode="tail">
                               • {item.name}
                             </Text>
                           ))}
-                          {items.length > 5 ? (
-                            <Text style={styles.categoryPlaceholder}>+{items.length - 5} more</Text>
-                          ) : null}
                         </View>
                       ) : null}
                     </View>
@@ -253,15 +294,15 @@ export default function SharedChecklistScreen() {
             {expandedSections.pending
               ? pendingByCategory.map(({ category, items }) => {
                   const key = `pending:${category}`;
-                  const isOpen = expandedCategory[key];
+                  const isOpen = expandedCategory[key] ?? true;
                   return (
-                    <View key={key} style={styles.categoryCard}>
+                    <View key={key} style={[styles.categoryCard, styles.categoryIndent, styles.categoryCardPending]}>
                       <Pressable
                         onPress={() => toggleCategory(key)}
                         style={styles.categoryHeader}
                         accessibilityRole="button"
                         accessibilityState={{ expanded: isOpen }}>
-                        <Text style={styles.categoryTitle}>
+                        <Text style={styles.categoryTitle} numberOfLines={1}>
                           {category} ({items.length})
                         </Text>
                         <MaterialIcons
@@ -272,15 +313,19 @@ export default function SharedChecklistScreen() {
                         />
                       </Pressable>
                       {isOpen ? (
-                        <View style={styles.categoryBody}>
-                          {items.slice(0, 5).map((item) => (
-                            <Text key={item.id} style={styles.categoryItem}>
-                              • {item.name}
-                            </Text>
+                        <View style={[styles.pendingItemsWrap, styles.itemIndent]}>
+                          {items.map((item) => (
+                            <PendingRequestCard
+                              key={item.id}
+                              contributorName={contributorName(item.added_by)}
+                              itemName={item.name}
+                              quantity={Number(item.quantity ?? 1)}
+                              createdAt={item.created_at}
+                              busy={actionItemId === item.id}
+                              onAccept={() => void runItemAction(item.id, 'accept')}
+                              onDecline={() => void runItemAction(item.id, 'decline')}
+                            />
                           ))}
-                          {items.length > 5 ? (
-                            <Text style={styles.categoryPlaceholder}>+{items.length - 5} more</Text>
-                          ) : null}
                         </View>
                       ) : null}
                     </View>
@@ -406,9 +451,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 24 - 8,
+    fontSize: 16,
     fontWeight: '700',
     color: ChecklistDesign.textPrimary,
+  },
+  categoryIndent: {
+    marginLeft: CATEGORY_INDENT,
+  },
+  itemIndent: {
+    marginLeft: ITEM_INDENT - CATEGORY_INDENT,
   },
   categoryCard: {
     backgroundColor: ChecklistDesign.card,
@@ -420,6 +471,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
+  categoryCardPending: {
+    backgroundColor: ChecklistDesign.cream,
+  },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -428,7 +482,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   categoryTitle: {
-    fontSize: 25 - 9,
+    fontSize: 16,
     fontWeight: '500',
     color: ChecklistDesign.textPrimary,
     flex: 1,
@@ -439,14 +493,15 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     paddingTop: 0,
   },
-  categoryItem: {
+  pendingItemsWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    paddingTop: 0,
+  },
+  includedItemLine: {
     fontSize: 14,
     color: ChecklistDesign.textPrimary,
     marginBottom: 6,
-  },
-  categoryPlaceholder: {
-    fontSize: 13,
-    color: ChecklistDesign.textMuted,
   },
   primaryButton: {
     marginTop: 28,

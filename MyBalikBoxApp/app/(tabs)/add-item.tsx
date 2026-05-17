@@ -58,6 +58,7 @@ export default function AddItemScreen() {
   const [customName, setCustomName] = useState('');
   const [customPrice, setCustomPrice] = useState('');
   const [customQuantity, setCustomQuantity] = useState('1');
+  const [customCategory, setCustomCategory] = useState('');
   const [catalog, setCatalog] = useState<RecommendedCatalogItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -115,42 +116,34 @@ export default function AddItemScreen() {
     return [{ kind: 'custom' }, ...filteredRecommended.map((item) => ({ kind: 'recommended' as const, item }))];
   }, [filteredRecommended]);
 
-  const runWithBox = useCallback(
-    async (fn: (boxId: string) => Promise<void>, opts?: { onSuccess?: () => void }) => {
-      setBusy(true);
-      try {
-        const boxId = await resolveActiveBoxId();
-        if (!boxId) {
-          Alert.alert(
-            'No box selected',
-            'Sign in and join a box, or set EXPO_PUBLIC_ACTIVE_BOX_ID in .env to your box UUID.',
-          );
-          return;
-        }
-        await fn(boxId);
-        opts?.onSuccess?.();
-        Alert.alert('Added', 'Item was added to your checklist.');
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'Something went wrong.';
-        Alert.alert('Could not add item', message);
-      } finally {
-        setBusy(false);
+  const onAddRecommended = useCallback(async (item: RecommendedCatalogItem) => {
+    setBusy(true);
+    try {
+      const boxId = await resolveActiveBoxId();
+      if (!boxId) {
+        Alert.alert(
+          'No box selected',
+          'Sign in and join a box, or set EXPO_PUBLIC_ACTIVE_BOX_ID in .env to your box UUID.',
+        );
+        return;
       }
-    },
-    [],
-  );
+      const id = await addRecommendedItemToBox(item, boxId);
+      setLastInsertedChecklistId(id);
+      setSuccessModalOpen(true);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Something went wrong.';
+      Alert.alert('Could not add item', message);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
-  const onAddRecommended = useCallback(
-    (item: RecommendedCatalogItem) => {
-      void runWithBox((boxId) => addRecommendedItemToBox(item, boxId));
-    },
-    [runWithBox],
-  );
 
   const onOpenCustom = useCallback(() => {
     setCustomName('');
     setCustomPrice('');
     setCustomQuantity('1');
+    setCustomCategory('');
     setCustomModalOpen(true);
   }, []);
 
@@ -197,12 +190,14 @@ export default function AddItemScreen() {
         name,
         referencePriceUsd: priceUsd,
         quantity: qtyParsed,
+        category: customCategory.trim() || null,
       });
       setLastInsertedChecklistId(id);
       setCustomModalOpen(false);
       setCustomName('');
       setCustomPrice('');
       setCustomQuantity('1');
+      setCustomCategory('');
       setSuccessModalOpen(true);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Something went wrong.';
@@ -210,7 +205,7 @@ export default function AddItemScreen() {
     } finally {
       setBusy(false);
     }
-  }, [customName, customPrice, customQuantity]);
+  }, [customName, customPrice, customQuantity, customCategory]);
 
   const onUndoSuccess = useCallback(async () => {
     if (!lastInsertedChecklistId) {
@@ -499,6 +494,16 @@ export default function AddItemScreen() {
                 placeholderTextColor="#B0A79B"
                 style={styles.modalInput}
                 autoFocus
+                returnKeyType="next"
+              />
+
+              <Text style={styles.fieldLabel}>Category (optional)</Text>
+              <TextInput
+                value={customCategory}
+                onChangeText={setCustomCategory}
+                placeholder="e.g., Food · matches Add Items catalog labels"
+                placeholderTextColor="#B0A79B"
+                style={styles.modalInput}
                 returnKeyType="next"
               />
 
