@@ -1,33 +1,35 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CaptionEditor } from '@/components/new-post/caption-editor';
 import { VideoPreview } from '@/components/new-post/video-preview';
 import { ChecklistDesign } from '@/constants/checklist-design';
+import type { FeedPostCategory } from '@/constants/feed';
+import { createFeedPost } from '@/services/feed-posts';
+import { takePendingPostMedia } from '@/services/pending-post-media';
 
 const CATEGORIES = ['Family', 'Culture', 'Gratitude'] as const;
 type Category = (typeof CATEGORIES)[number];
 
+/** Fixed preview size on the finalize post screen (photos and videos). */
+const COMPOSE_MEDIA_HEIGHT = 340;
+
 export default function NewPostComposeScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{
-    mediaUri?: string;
-    mediaType?: string;
-  }>();
-
-  const mediaUri = typeof params.mediaUri === 'string' ? params.mediaUri : '';
-  const mediaType = params.mediaType === 'video' ? 'video' : 'photo';
+  const [pendingMedia] = useState(() => takePendingPostMedia());
+  const mediaUri = pendingMedia?.uri ?? '';
+  const mediaType = pendingMedia?.mediaType ?? 'photo';
 
   const [caption, setCaption] = useState('');
   const [captionDraft, setCaptionDraft] = useState('');
   const [captionEditorOpen, setCaptionEditorOpen] = useState(false);
   const [category, setCategory] = useState<Category | null>(null);
-  const [mediaAspect, setMediaAspect] = useState(1);
+  const [sharing, setSharing] = useState(false);
 
   const openCaptionEditor = () => {
     setCaptionDraft(caption);
@@ -39,8 +41,26 @@ export default function NewPostComposeScreen() {
     setCaptionEditorOpen(false);
   };
 
-  const onNext = () => {
-    Alert.alert('Post', 'Sharing your post is coming soon.');
+  const onShare = async () => {
+    if (!mediaUri || sharing) return;
+
+    const postCategory: FeedPostCategory = category ?? 'Family';
+
+    setSharing(true);
+    try {
+      await createFeedPost({
+        localMediaUri: mediaUri,
+        caption,
+        category: postCategory,
+        mediaType,
+        assetId: pendingMedia?.assetId,
+      });
+      router.replace('/(tabs)/feed');
+    } catch (err) {
+      Alert.alert('Could not share', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setSharing(false);
+    }
   };
 
   if (!mediaUri) {
@@ -51,7 +71,7 @@ export default function NewPostComposeScreen() {
         <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
           <View style={styles.header}>
             <Pressable style={styles.headerIconBtn} onPress={() => router.back()} accessibilityRole="button">
-              <MaterialIcons name="close" size={26} color={ChecklistDesign.textPrimary} />
+              <MaterialIcons name="arrow-back" size={26} color={ChecklistDesign.textPrimary} />
             </Pressable>
             <Text style={styles.headerTitle}>New Post</Text>
             <View style={styles.headerIconBtn} />
@@ -70,23 +90,17 @@ export default function NewPostComposeScreen() {
       style={styles.gradient}
       start={{ x: 0.5, y: 0 }}
       end={{ x: 0.5, y: 1 }}>
-      <View style={[styles.screen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
         <View style={styles.header}>
           <Pressable
             style={styles.headerIconBtn}
             onPress={() => router.back()}
             accessibilityRole="button"
-            accessibilityLabel="Close">
-            <MaterialIcons name="close" size={26} color={ChecklistDesign.textPrimary} />
+            accessibilityLabel="Go back">
+            <MaterialIcons name="arrow-back" size={26} color={ChecklistDesign.textPrimary} />
           </Pressable>
           <Text style={styles.headerTitle}>New Post</Text>
-          <Pressable
-            style={styles.headerNextBtn}
-            onPress={onNext}
-            accessibilityRole="button"
-            accessibilityLabel="Next">
-            <Text style={styles.headerNextText}>Next</Text>
-          </Pressable>
+          <View style={styles.headerIconBtn} />
         </View>
 
         <ScrollView
@@ -96,19 +110,9 @@ export default function NewPostComposeScreen() {
           keyboardShouldPersistTaps="handled">
           <View style={styles.mediaFrame}>
             {mediaType === 'video' ? (
-              <VideoPreview uri={mediaUri} style={styles.mediaSquare} />
+              <VideoPreview key={mediaUri} uri={mediaUri} style={styles.mediaFill} contentFit="cover" />
             ) : (
-              <Image
-                source={{ uri: mediaUri }}
-                style={[styles.media, { aspectRatio: mediaAspect }]}
-                contentFit="fill"
-                onLoad={(event) => {
-                  const { width, height } = event.source;
-                  if (width > 0 && height > 0) {
-                    setMediaAspect(width / height);
-                  }
-                }}
-              />
+              <Image source={{ uri: mediaUri }} style={styles.mediaFill} contentFit="cover" />
             )}
           </View>
 
@@ -150,6 +154,22 @@ export default function NewPostComposeScreen() {
             </View>
           </View>
         </ScrollView>
+
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <Pressable
+            style={[styles.shareButton, sharing && styles.shareButtonDisabled]}
+            onPress={() => void onShare()}
+            disabled={sharing}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Share post">
+            {sharing ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.shareButtonText}>Share</Text>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       <CaptionEditor
@@ -190,35 +210,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: ChecklistDesign.textPrimary,
   },
-  headerNextBtn: {
-    minWidth: 44,
-    height: 44,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  headerNextText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: ChecklistDesign.textPrimary,
-  },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 16,
     gap: 16,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    alignItems: 'center',
+  },
+  shareButton: {
+    width: '100%',
+    maxWidth: 280,
+    height: 27,
+    borderRadius: 8,
+    backgroundColor: '#557E8F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareButtonDisabled: {
+    opacity: 0.7,
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   mediaFrame: {
     width: '100%',
+    height: COMPOSE_MEDIA_HEIGHT,
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: '#D4D0C8',
   },
-  media: {
+  mediaFill: {
     width: '100%',
-  },
-  mediaSquare: {
-    width: '100%',
-    aspectRatio: 1,
+    height: '100%',
   },
   captionPressable: {
     minHeight: 44,

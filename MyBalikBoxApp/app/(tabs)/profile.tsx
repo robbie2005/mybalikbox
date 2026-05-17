@@ -8,7 +8,10 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ProfilePostsGrid } from '@/components/profile/profile-posts-grid';
 import { ChecklistDesign } from '@/constants/checklist-design';
+import { fetchUserFeedPostThumbnails, type FeedPostThumbnail } from '@/services/feed-posts';
+import { setPendingFeedScrollPostId } from '@/services/feed-navigation';
 import {
   fetchCurrentProfile,
   fetchProfileStats,
@@ -24,6 +27,8 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<ProfileStats>({ boxes: 0, friends: 0, posts: 0 });
+  const [userPosts, setUserPosts] = useState<FeedPostThumbnail[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -31,16 +36,33 @@ export default function ProfileScreen() {
       const current = await fetchCurrentProfile();
       if (!current) {
         setProfile(null);
+        setUserPosts([]);
         return;
       }
       setProfile(current);
       const profileStats = await fetchProfileStats(current.id);
       setStats(profileStats);
+
+      setPostsLoading(true);
+      try {
+        const thumbnails = await fetchUserFeedPostThumbnails(current.id);
+        setUserPosts(thumbnails);
+      } catch {
+        setUserPosts([]);
+      } finally {
+        setPostsLoading(false);
+      }
     } catch {
       setProfile(null);
+      setUserPosts([]);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const onPostPress = useCallback((postId: string) => {
+    setPendingFeedScrollPostId(postId);
+    router.navigate('/(tabs)/feed');
   }, []);
 
   useFocusEffect(
@@ -129,11 +151,11 @@ export default function ProfileScreen() {
               <Text style={styles.manageButtonText}>Manage Friends</Text>
             </Pressable>
 
-            <View style={styles.grid}>
-              {Array.from({ length: 9 }).map((_, index) => (
-                <View key={index} style={styles.gridItem} />
-              ))}
-            </View>
+            <ProfilePostsGrid
+              posts={userPosts}
+              loading={postsLoading}
+              onPostPress={onPostPress}
+            />
           </>
         )}
       </ScrollView>
@@ -269,18 +291,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
-  },
-  grid: {
-    marginTop: 32,
-    width: '100%',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 13,
-  },
-  gridItem: {
-    width: '31.5%',
-    aspectRatio: 1,
-    backgroundColor: '#D8D8D8',
   },
 });

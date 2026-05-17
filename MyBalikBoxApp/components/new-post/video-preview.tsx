@@ -5,12 +5,14 @@ import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 type VideoPreviewProps = {
   uri: string;
   style?: StyleProp<ViewStyle>;
+  contentFit?: 'contain' | 'cover';
 };
 
-export function VideoPreview({ uri, style }: VideoPreviewProps) {
+export function VideoPreview({ uri, style, contentFit = 'contain' }: VideoPreviewProps) {
   const player = useVideoPlayer(null);
 
   useEffect(() => {
+    if (!uri) return;
     let cancelled = false;
 
     void (async () => {
@@ -18,7 +20,8 @@ export function VideoPreview({ uri, style }: VideoPreviewProps) {
         await player.replaceAsync(uri);
         if (cancelled) return;
         player.loop = true;
-        player.play();
+        player.muted = false;
+        await player.play();
       } catch {
         // Player may reject invalid URIs; surface handled by empty view upstream.
       }
@@ -33,7 +36,7 @@ export function VideoPreview({ uri, style }: VideoPreviewProps) {
     <VideoView
       style={[styles.video, style]}
       player={player}
-      contentFit="contain"
+      contentFit={contentFit}
       nativeControls
       fullscreenOptions={{ enable: true }}
     />

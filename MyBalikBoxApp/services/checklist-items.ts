@@ -147,7 +147,7 @@ export async function deleteChecklistItemById(id: string): Promise<void> {
 export async function acceptChecklistItem(id: string): Promise<void> {
   const { error } = await supabase
     .from('box_checklist_items')
-    .update({ status: 'purchased' })
+    .update({ status: 'purchased', updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw mapPg(error);
   notifyChecklistChanged();

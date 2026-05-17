@@ -1,5 +1,6 @@
 import { ProfileAvatar } from '@/components/profile-avatar';
 import { ChecklistDesign } from '@/constants/checklist-design';
+import { signOutUser } from '@/services/auth-sign-out';
 import { fetchCurrentProfile } from '@/services/profile';
 import { supabase } from '@/services/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -63,8 +64,8 @@ export default function SettingsScreen() {
         <Divider />
         <SettingsRow title="Help/FAQ" onPress={() => router.push('/help-faq')} />
         <Divider />
-        <Pressable style={styles.row} onPress={() => {}}>
-          <Text style={styles.deleteText}>Delete Account</Text>
+        <Pressable style={styles.row} onPress={() => void signOutUser()} accessibilityRole="button" accessibilityLabel="Sign out">
+          <Text style={styles.signOutText}>Sign Out</Text>
         </Pressable>
       </View>
     </LinearGradient>
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2B2F38',
   },
-  deleteText: {
+  signOutText: {
     fontSize: 13,
     fontWeight: '800',
     color: '#2B2F38',

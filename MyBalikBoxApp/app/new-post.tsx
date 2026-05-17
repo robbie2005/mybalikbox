@@ -20,6 +20,7 @@ import { captureRef } from 'react-native-view-shot';
 import { VideoPreview } from '@/components/new-post/video-preview';
 import { ZoomableMedia } from '@/components/new-post/zoomable-media';
 import { ChecklistDesign } from '@/constants/checklist-design';
+import { setPendingPostMedia } from '@/services/pending-post-media';
 import {
   capturePhotoWithCamera,
   loadRecentMedia,
@@ -139,7 +140,8 @@ export default function NewPostScreen() {
     let mediaUri = previewUri;
     let mediaType: 'photo' | 'video' = selected.mediaType;
 
-    if (previewCaptureRef.current) {
+    // Photos: capture zoomed frame as snapshot. Videos: keep playable URI (view-shot of VideoView is unreliable).
+    if (previewCaptureRef.current && selected.mediaType !== 'video') {
       setCapturingSnapshot(true);
       try {
         await new Promise<void>((resolve) => {
@@ -159,13 +161,14 @@ export default function NewPostScreen() {
       }
     }
 
-    router.push({
-      pathname: '/new-post-compose',
-      params: {
-        mediaUri,
-        mediaType,
-      },
+    setPendingPostMedia({
+      uri: mediaUri,
+      mediaType,
+      width: selected.width,
+      height: selected.height,
+      assetId: selected.id,
     });
+    router.push('/new-post-compose');
   };
 
   const renderPreview = () => {
