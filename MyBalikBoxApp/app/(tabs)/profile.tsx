@@ -125,7 +125,8 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <Pressable style={styles.manageButton} onPress={() => {}}>
+            <Pressable
+              style={styles.manageButton} onPress={() => router.push('/manage-friends')}>
               <Text style={styles.manageButtonText}>Manage Friends</Text>
             </Pressable>
 
